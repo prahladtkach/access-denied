@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import type { ObjectId } from './game';
 import { objects } from './story';
 import './laboratory.css';
@@ -28,7 +28,7 @@ const zones: Record<Direction, { id: ObjectId; box: [number, number, number, num
 };
 
 function LabArt({ direction, locked }: { direction: Direction; locked: boolean }) {
-  return <svg className="lab-art" viewBox="0 0 1024 560" preserveAspectRatio="none" aria-hidden="true">
+  return <svg className="lab-art" viewBox="0 0 1024 560" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
     <defs>
       <linearGradient id="lab-wall" x2="0" y2="1"><stop stopColor="#253434" /><stop offset="1" stopColor="#111b20" /></linearGradient>
       <linearGradient id="lab-tile" x2="0" y2="1"><stop stopColor="#304341" /><stop offset="1" stopColor="#10191d" /></linearGradient>
@@ -54,7 +54,7 @@ function LabArt({ direction, locked }: { direction: Direction; locked: boolean }
       fill="none" stroke="#0e1b21" strokeWidth="4" />
     <path d="M145 72v340m734-340v340M0 137l145 51h734l145-51M0 246l145 30h734l145-30M0 374l145 5h734l145-5"
       fill="none" stroke="#111b20" strokeWidth="5" />
-    <path d="M0 318l145 16h734l145-16" stroke="#60726a" strokeOpacity=".17" strokeWidth="8" />
+    <path d="M0 318l145 16h734l145-16" fill="none" stroke="#60726a" strokeOpacity=".19" strokeWidth="4" />
     <ellipse className="lab-ceiling-glow" cx="515" cy="130" rx="389" ry="143" fill="url(#lab-spill)" />
     <path d="M389 42h238l-12 12H402z" fill="#091313" />
     <path className="lab-light" d="M405 46h206v4H405z" fill="#b4c6a4" />
@@ -91,12 +91,15 @@ function LabArt({ direction, locked }: { direction: Direction; locked: boolean }
       <path d="M303 375c7-25 23-30 40-33l56-12" fill="none" stroke="#16201f" strokeWidth="4" />
       <path d="M295 375h21l4 16-10 11h-22l-4-12z" fill="#9b9c8d" stroke="#35443d" strokeWidth="2" />
       <path d="M304 376l-2 10m-14 3h30" stroke="#53665b" strokeWidth="2" />
-      <path d="M473 332h122l19 30H446z" fill="#25362f" stroke="#15211e" strokeWidth="5" />
-      <path d="M491 310h77v45h-77z" fill="#4b5d53" />
-      <path d="M410 166l205-19 70 34 14 131-43 28-37-159z" fill="#394c44" stroke="#17231f" strokeWidth="6" />
-      <path d="M624 155l54 24-44-8-205 8z" fill="#788779" />
-      <path d="M657 198l22 11m-21-2 22 12m-21-2 22 12m-21-2 22 12" fill="none" stroke="#17221f" strokeWidth="4" />
-      <path d="M414 171h208l26 21v121l-19 22H407l-19-20V193z" fill="url(#lab-bezel)" stroke="#15221e" strokeWidth="6" />
+      <ellipse cx="529" cy="357" rx="105" ry="18" fill="url(#lab-shadow)" opacity=".65" />
+      <path d="M477 341h111l22 14v7H455v-7z" fill="#26362f" stroke="#18231f" strokeWidth="4" />
+      <path d="M458 354h149" stroke="#65776a" strokeWidth="3" opacity=".65" />
+      <path d="M494 315h73l9 31-12 5h-68l-9-5z" fill="#43564b" stroke="#1b2a24" strokeWidth="4" />
+      <path d="M503 323h54v18h-54z" fill="#65776a" opacity=".5" />
+      <path d="M414 171l32-22 194-9 40 25-32 28-26-22z" fill="#758677" stroke="#1b2823" strokeWidth="5" />
+      <path d="M648 193l32-28 2 124-13 18-40 28 19-22z" fill="#40554a" stroke="#1a2823" strokeWidth="4" />
+      <path d="M658 207l13-10m-13 21 13-10m-13 21 13-10m-13 21 13-10" fill="none" stroke="#1a2923" strokeWidth="3" />
+      <path d="M414 171h208l26 22v120l-19 22H407l-19-20V193z" fill="url(#lab-bezel)" stroke="#18241f" strokeWidth="6" />
       <path d="M423 188h194l15 13v99l-13 15H421l-15-16v-97z" fill="#15251f" />
       <path className="lab-monitor" d="M430 197h177l13 10v86l-10 12H431l-13-12v-85z" fill="url(#lab-glass)" />
       <path d="M436 218h68v4h-68zm0 9h31v4h-31zm0 54h107v3H436z" fill="#d1efd0" opacity=".57" />
@@ -145,13 +148,15 @@ export function Laboratory({ direction, look, inspect, selected, dark, locked, c
   const right = directions[(index + 1) % 3];
 
   return <section className="laboratory" aria-label="Laboratorio de programación">
-    <div className={'lab-scene' + (dark ? ' lab-dark' : '')} key={direction}>
-      <LabArt direction={direction} locked={locked} />
-      {zones[direction].map(({ id, box: [x, y, width, height] }) => <button
-        key={id} aria-label={objects[id].name}
-        className={'lab-target ' + id + (selected === id ? ' lab-selected' : '')}
-        style={{ left: x / 10.24 + '%', top: y / 5.6 + '%', width: width / 10.24 + '%', height: height / 5.6 + '%' } as CSSProperties}
-        onClick={() => inspect(id)}><span className="tag">{objects[id].name}</span></button>)}
+    <div className="lab-frame">
+      <div className={'lab-scene' + (dark ? ' lab-dark' : '')} key={direction}>
+        <LabArt direction={direction} locked={locked} />
+        {zones[direction].map(({ id, box: [x, y, width, height] }) => <button
+          key={id} aria-label={objects[id].name}
+          className={'lab-target ' + id + (selected === id ? ' lab-selected' : '')}
+          style={{ left: x / 1024 * 100 + '%', top: y / 560 * 100 + '%', width: width / 1024 * 100 + '%', height: height / 560 * 100 + '%' }}
+          onClick={() => inspect(id)}><span className="tag">{objects[id].name}</span></button>)}
+      </div>
     </div>
     <nav className="lab-turn" aria-label="Cambiar vista del laboratorio">
       <button onClick={() => look(left)} aria-label={'Mirar hacia ' + directionNames[left]}><span aria-hidden="true">‹</span> {directionNames[left]}</button>

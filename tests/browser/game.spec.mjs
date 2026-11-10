@@ -63,17 +63,17 @@ async function finalCheckpoint(page, evidence = 'skip') {
   await warn(page);
   await answer(page, 'permiso == 1');
   await click(page, 'Abrir reto · P3');
-  await order(page, ['void abrirArmario(void)', 'enviarPulso', 'liberarCerrojo', /^＋ \}$/, 'void mantenimiento']);
+  await order(page, ['int pulso = 0;', 'pulso = pulso + 2;', 'pulso = pulso * 3;', 'printf("%d", pulso);']);
   await click(page, '← Habitación');
   await look(page, 'Área de servicio');
   await inspect(page, 'Armario');
-  await expect(page.getByText(/referencia ASCII/)).toBeVisible();
+  await expect(page.getByText(/Encontrás la tarjeta del servidor/)).toBeVisible();
   await useComputer(page);
   await click(page, 'Abrir reto · P4');
   await answer(page, 'EXIT');
   await expect(page.locator('footer')).toContainText('Servidor desbloqueado');
   await warn(page);
-  await order(page, ['iniciarSesion', 'verificarSesion', 'habilitarSesion']);
+  await order(page, ['int sesion = 0;', 'sesion = sesion + 1;', 'printf("%d", sesion);']);
   await click(page, '← Habitación');
   await look(page, 'Área de servicio');
   await inspect(page, 'Rack de servidores');
@@ -106,7 +106,7 @@ async function lastDefense(page) {
 
 async function localControl(page) {
   await click(page, 'Abrir reto · P6');
-  await answer(page, 'puertaLista == 1 && sesionLocal == 1');
+  await answer(page, 'controlLocal == 1');
 }
 
 test('ESCAPE: todos los retos principales y salida por la puerta física', async ({ page }) => {
@@ -149,7 +149,7 @@ test('UNKNOWN WINS: transferencia confirmada y segundo fallo del protocolo', asy
   await click(page, 'Volver al punto de control final');
   await lastDefense(page);
   await click(page, 'Abrir reto · P6');
-  await answer(page, 'puertaLista = 1');
+  await answer(page, 'controlLocal = 1');
   await expect(page.getByRole('status')).toContainText('ADVERTENCIA');
   await answer(page, 'sesionLocal = 1');
   await expect(page.getByRole('heading', { name: 'UNKNOWN WINS', exact: true })).toBeVisible();
@@ -309,7 +309,103 @@ test('el CRT muestra un salvapantallas y vuelve al encuadre anterior', async ({ 
   await click(page, 'Acercarse al monitor');
   await page.clock.fastForward(46_000);
   await expect(button(page, 'Reactivar monitor')).toBeVisible();
+  await expect(page.getByText('MODO DE ESPERA')).toHaveCount(0);
+  await expect(page.locator('.menu-saver > span')).toHaveCSS('animation-name', 'saver-x, saver-y');
   await expect(button(page, 'Nueva partida')).toHaveCount(0);
   await button(page, 'Reactivar monitor').press('Enter');
   await expect(button(page, 'Nueva partida')).toBeFocused();
 });
+
+test('las otras seis variantes de ataque aceptan soluciones de C básico', async ({ page }) => {
+  const answers = [
+    ['D2', 'i <= 5'],
+    ['S2', ['float voltaje = 1.5;', 'voltaje = voltaje + 0.5;', 'voltaje = voltaje * 2;', 'printf("%.1f", voltaje);']],
+    ['C2', 'RED'],
+    ['D3', 'firma == 1'],
+    ['S3', ['int intentos = 2;', 'while (intentos > 0)', 'printf("%d", intentos);']],
+    ['C3', 'NEXUS'],
+  ];
+  await page.goto('/');
+  for (const [offset, [id, solution]] of answers.entries()) {
+    await page.evaluate(index => {
+      const initial = { stage: 0, clues: [], files: [], log: 'pending', intrusion: 0, wave: 0, sealed: false };
+      const progress = { ...initial, stage: 2, wave: index };
+      localStorage.setItem('access-denied:v1', JSON.stringify({
+        progress, checkpoints: [initial, progress], attack: { index, remaining: null },
+        lastAttack: 0, finalErrors: 0, ending: null,
+      }));
+    }, offset + 3);
+    await page.reload();
+    await click(page, 'Acercarse al monitor');
+    await click(page, 'Continuar partida');
+    await click(page, 'Iniciar defensa');
+    await expect(page.getByText(id + ' / LENGUAJE C', { exact: true })).toBeVisible();
+    if (typeof solution === 'string') await answer(page, solution);
+    else await order(page, solution);
+    await expect(page.getByRole('status')).toContainText('ATAQUE BLOQUEADO');
+  }
+});
+
+test('redimensionar por borde y esquina conserva el borrador y respeta el escritorio', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await terminalRecovered(page);
+  await warn(page);
+  await answer(page, 'permiso == 1');
+  await click(page, 'Abrir reto · P3');
+  await page.locator('.line-bank').getByRole('button', { name: /int pulso = 0/ }).click();
+  const terminal = page.getByRole('region', { name: 'Ventana de Terminal' });
+  const area = await page.locator('.os-workspace').boundingBox();
+  const initial = await terminal.boundingBox();
+  async function drag(edge, x, y) {
+    const grip = await terminal.locator('[data-edge="' + edge + '"]').boundingBox();
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(x, y, { steps: 5 });
+    await page.mouse.up();
+  }
+  await drag('se', area.x + area.width + 30, area.y + area.height + 30);
+  const enlarged = await terminal.boundingBox();
+  expect(enlarged.width).toBeGreaterThan(initial.width);
+  expect(enlarged.x + enlarged.width).toBeLessThanOrEqual(area.x + area.width);
+  expect(enlarged.y + enlarged.height).toBeLessThanOrEqual(area.y + area.height);
+
+  await drag('e', enlarged.x + 70, enlarged.y + enlarged.height / 2);
+  const shrunk = await terminal.boundingBox();
+  expect(shrunk.width).toBeCloseTo(340, 0);
+  expect(shrunk.height).toBeCloseTo(enlarged.height, 0);
+  await click(page, 'Minimizar Terminal');
+  await click(page, 'Alternar Terminal');
+  await expect(terminal.getByRole('list', { name: 'Secuencia armada' })).toContainText('int pulso = 0;');
+  await expect.poll(async () => (await terminal.boundingBox()).width).toBeCloseTo(shrunk.width, 0);
+});
+
+for (const [width, height] of [[1920, 1080], [1366, 768], [1280, 720]]) {
+  test('las vistas conservan geometría y el panel no cambia su escala a ' + width + '×' + height, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto('/');
+    await click(page, 'Acercarse al monitor');
+    await click(page, 'Nueva partida');
+    await click(page, 'Entrar al laboratorio');
+    const scene = page.locator('.lab-scene');
+    const check = async object => {
+      const before = await scene.boundingBox();
+      expect(before.width / before.height).toBeCloseTo(1024 / 560, 3);
+      await inspect(page, object);
+      const after = await scene.boundingBox();
+      expect(after).toEqual(before);
+      expect(after.x).toBeGreaterThan(0);
+      expect(after.x + after.width).toBeLessThan(width);
+      expect(await page.evaluate(() => ({
+        width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight,
+      }))).toEqual({ width, height });
+    };
+    await check('Puerta electrónica');
+    await click(page, 'Probar la puerta');
+    await look(page, 'Puesto de trabajo');
+    await check('Computadora');
+    await check('Nota del escritorio');
+    await look(page, 'Área de servicio');
+    await check('Rack de servidores');
+    await check('Armario');
+  });
+}

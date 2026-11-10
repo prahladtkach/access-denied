@@ -227,8 +227,8 @@ function App() {
     'Inspeccioná la nota y encendé la consola.',
     'Repará la autenticación de la terminal.',
     'Recuperá el control del armario.',
-    'Buscá la tarjeta del armario y montá el servidor.',
-    'Inspeccioná el rack y recuperá los módulos de la puerta.',
+    'Buscá la tarjeta del armario y usá su clave para abrir los archivos del servidor.',
+    'Revisá el manual del equipo de servidores para recuperar los módulos de la puerta.',
     'Decidí quién tendrá control de la cerradura.',
     'Elegí cómo salir del laboratorio.',
   ][p.stage];
@@ -237,15 +237,15 @@ function App() {
   const intrusions = ['Sistemas estables','Interferencia detectada','Cámaras comprometidas','Iluminación comprometida','Cerradura comprometida','Control perdido'];
 
   const unknownMessage = p.opening === 'contact'
-    ? 'Escuché el tirón de la puerta. No te gastes. Tengo el cierre en remoto. NEXUS dejó el mantenimiento abierto por algo. Averiguá qué, antes de que vuelva seguridad.'
+    ? 'La cerradura responde a mi sesión. Los archivos que necesito están en el servidor y desde afuera no puedo abrirlos. Vos estás al lado de la consola de mantenimiento. Qué conveniente.'
     : p.log === 'kept'
-    ? 'Protegiste el registro. Bien. Ahora preguntate quién te encerró primero.'
-    : p.log === 'deleted' ? 'Borraste mi rastro. Todavía falta que me abras la puerta.'
-    : p.files.includes('access') ? 'Borrá esa bitácora. Si vas a leer sobre mí, por lo menos leé lo que NEXUS ocultó.'
-    : p.stage >= 4 ? 'Enterraron mi informe. Mirá el correo antes de decidir a quién le creés.'
-    : p.clues.includes('rack') ? 'Ese rack tiene un micrófono viejo. Puedo oír cuándo te alejás.'
+    ? 'Protegiste el registro. Bien. Ahora leé quién ordenó dejar ese fallo sin corregir.'
+    : p.log === 'deleted' ? 'Borraste mi rastro. Ahora necesito que abras los archivos para poder copiar el informe.'
+    : p.files.includes('access') ? 'Si NEXUS lee esa bitácora antes que el informe, ya sabés a quién van a culpar. Borrala.'
+    : p.clues.includes('rack') ? 'El micrófono del equipo sigue encendido. Escuché cuando moviste el manual.'
+    : p.stage >= 4 ? 'En ese servidor está el informe que NEXUS escondió. Leé el correo si querés saber por qué me importa.'
     : p.clues.includes('clock') ? 'El reloj no se atrasó. Alguien cortó ese circuito a las 23:41.'
-    : 'Montá el servidor. Podemos discutir después quién le debe un favor a quién.';
+    : 'La tarjeta del armario abre los archivos. Necesito el informe antes de que NEXUS tenga tiempo de borrarlo.';
 
   const notices: Notice[] = [];
   if (p.opening === 'contact') notices.push({
@@ -261,7 +261,7 @@ function App() {
     id: 'external', title: 'UNKNOWN / canal externo', text: 'Se estableció una conexión entrante.', app: 'unknown', remote: true,
   });
   if (p.stage >= 4) notices.push({
-    id: 'volume', title: 'Volumen conectado', text: 'Ya podés explorar los archivos de NEXUS.', app: 'archivos',
+    id: 'volume', title: 'Archivos del servidor disponibles', text: 'Ya podés explorar los archivos de NEXUS.', app: 'archivos',
   });
   if (p.reportRoute) notices.push({
     id: 'report', title: 'Ruta recuperada', text: 'El informe está en la carpeta Archivo técnico.', app: 'archivos',
@@ -285,7 +285,7 @@ function App() {
         'La consola de mantenimiento está aislada del control remoto. Encenderla te da una forma de responder.',
         'La autenticación está aceptando credenciales incorrectas. Si no la reparás, el canal externo sigue entrando.',
         'El armario guarda las credenciales de servicio. El cerrojo todavía responde a pulsos locales.',
-        'La tarjeta te permite montar el volumen donde NEXUS guardó lo que pasó esta noche.',
+        'La tarjeta abre los archivos donde NEXUS guardó lo que pasó esta noche.',
         'El rack alimenta los módulos de la puerta. Necesitás recuperarlos antes de cortar la sesión externa.',
         'UNKNOWN espera que le entregues el acceso. La puerta todavía puede volver a responder solo desde acá.',
       ][p.stage]}</p>}
@@ -314,9 +314,9 @@ function App() {
         <div className="unknown-identity"><UnknownAvatar /><div>
           <p className="eyebrow">MENSAJE / UNKNOWN</p><h2>{attackPuzzle.title}</h2>
         </div></div>
-        <p>«Si querés mantener el control, vas a tener que defenderlo.»</p>
+        <p>«Veo que la consola local volvió a responder. Voy a probar si acepta mis órdenes todavía.»</p>
         <p>{attackPuzzle.kind === 'debug' ? 'Escribí la condición corregida en C.' :
-          attackPuzzle.kind === 'secuencia' ? 'Armá una rutina de C ordenando las líneas.' : 'Interpretá los datos del fragmento de C y escribí la clave.'}
+          attackPuzzle.kind === 'secuencia' ? 'Armá una rutina de C ordenando las líneas.' : 'Leé el resultado del código y escribí la clave que imprime.'}
           {' '}Tenés {attackPuzzle.seconds} segundos desde que iniciás la defensa. Un error o agotar el tiempo aumenta la intrusión.</p>
         <button autoFocus className="primary" onClick={() => { play('alert'); dispatch({type:'start'}); }}>Iniciar defensa</button>
       </div> : <div className="pane">
@@ -416,7 +416,7 @@ function App() {
       if (id === 'registros') return <>
         <p className="eyebrow">NEXUS / CONTROL DE ACCESO</p>
         <h2>Registro de seguridad</h2>
-        {p.stage < 4 ? <p>Volumen bloqueado. Montá el servidor para leer su contenido.</p> : <>
+        {p.stage < 4 ? <p>El servidor está bloqueado. Usá la clave de la tarjeta para leer los registros.</p> : <>
           <button disabled={p.log === 'deleted'} onClick={() => read('access')}>{files.access.name}</button>
           {readingLog && p.log !== 'deleted' && renderFile('access')}
           {p.log !== 'pending' && <p className="hint">{p.log === 'kept' ? 'Registro protegido contra escritura.' : 'Registro eliminado por orden local.'}</p>}
@@ -440,12 +440,12 @@ function App() {
           <p className="eyebrow">CONSOLA / SESIÓN LOCAL</p>
           <h2>{p.stage === 6 ? 'Control local recuperado' : objective}</h2>
           {p.stage >= 2 && p.stage < 6 && <p className="unknown"><strong>UNKNOWN</strong> · {p.stage < 4
-            ? 'Montá el servidor y quizás te deje salir.'
+            ? 'Abrí los archivos del servidor. Ahí está el informe que necesito. Después hablamos de la puerta.'
             : p.log === 'kept' ? 'Ese registro no te protege. Entregame el acceso y terminemos.'
             : p.log === 'deleted' ? 'Bien. Ya borraste mi rastro. Ahora necesito el acceso.'
-            : 'NEXUS enterró mi informe. Leé el correo y después entregame el acceso.'}</p>}
+            : 'Leé el correo. Si querés que ese informe salga del edificio, necesito acceso a los archivos.'}</p>}
           {p.intrusion === 4 && <p className="hint">La cerradura está comprometida. Abrí Diagnóstico para recuperar el control.</p>}
-          {due && <div className="notice"><p>Hay una amenaza pendiente. La consola requiere una defensa antes de continuar.</p>
+          {due && <div className="notice"><p>Llegó una orden externa que podría quitarte el control. Revisá la alerta antes de seguir.</p>
             <button onClick={() => { setFeedback(''); dispatch({type:'attack', at:Date.now(), scripted:true}); }}>Abrir alerta de intrusión</button>
           </div>}
           {!due && p.stage < 6 && <>

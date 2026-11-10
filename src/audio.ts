@@ -7,12 +7,17 @@ export interface AudioPreferences {
   music: number;
   ambience: number;
   sfx: number;
+  disabled: Record<Channel, boolean>;
   muted: boolean;
   effects: boolean;
 }
 
 const key = 'access-denied:preferences:v1';
-const defaults: AudioPreferences = { music: 24, ambience: 25, sfx: 25, muted: false, effects: true };
+const defaults: AudioPreferences = {
+  music: 24, ambience: 20, sfx: 25,
+  disabled: { music: false, ambience: false, sfx: false },
+  muted: false, effects: true,
+};
 
 function level(value: unknown, fallback: number) {
   return typeof value === 'number' && Number.isFinite(value) ? Math.min(100, Math.max(0, value)) : fallback;
@@ -25,6 +30,11 @@ function loadPreferences(): AudioPreferences {
       music: level(saved?.music, defaults.music),
       ambience: level(saved?.ambience, defaults.ambience),
       sfx: level(saved?.sfx ?? saved?.volume, defaults.sfx),
+      disabled: {
+        music: saved?.disabled?.music === true,
+        ambience: saved?.disabled?.ambience === true,
+        sfx: saved?.disabled?.sfx === true,
+      },
       muted: saved?.muted === true,
       effects: saved?.effects !== false,
     };
@@ -35,8 +45,8 @@ function loadPreferences(): AudioPreferences {
 
 const loops = {
   menu: { file: 'musica/menu.mp3', channel: 'music', gain: .39, overlap: .65 },
-  room: { file: 'ambiente/fluorescent.mp3', channel: 'ambience', gain: .23, overlap: .12 },
-  pc: { file: 'ambiente/fan.wav', channel: 'ambience', gain: .16, overlap: .15 },
+  room: { file: 'ambiente/fluorescent.mp3', channel: 'ambience', gain: .047, overlap: .28, cutoff: 260 },
+  pc: { file: 'ambiente/fan.wav', channel: 'ambience', gain: .045, overlap: .28, cutoff: 430 },
 } as const;
 
 interface Clip {
@@ -102,6 +112,7 @@ class Mixer {
   private scene: SoundScene = 'silent';
   private loop: { source: AudioBufferSourceNode; gain: GainNode } | null = null;
   private sceneVersion = 0;
+  private loopAvailableAt = 0;
   private preferences = defaults;
 
   constructor(private context: AudioContext) {
@@ -125,7 +136,7 @@ class Mixer {
     const now = this.context.currentTime;
     setGain(this.master.gain, preferences.muted ? 0 : .8, now, .035);
     for (const channel of ['music', 'ambience', 'sfx'] as const) {
-      setGain(this.buses[channel].gain, preferences[channel] / 100, now, .06);
+      setGain(this.buses[channel].gain, preferences.disabled[channel] ? 0 : preferences[channel] / 100, now, .06);
     }
   }
 
@@ -145,13 +156,21 @@ class Mixer {
     return buffer;
   }
 
-  private voice(buffer: AudioBuffer, channel: Channel) {
+  private voice(buffer: AudioBuffer, channel: Channel, cutoff?: number) {
     const source = this.context.createBufferSource();
     const gain = this.context.createGain();
     source.buffer = buffer;
-    source.connect(gain).connect(this.buses[channel]);
+    const filter = cutoff ? this.context.createBiquadFilter() : null;
+    if (filter && cutoff) {
+      filter.type = 'lowpass';
+      filter.frequency.value = cutoff;
+      filter.Q.value = .35;
+      source.connect(filter).connect(gain);
+    } else source.connect(gain);
+    gain.connect(this.buses[channel]);
     source.onended = () => {
       source.disconnect();
+      filter?.disconnect();
       gain.disconnect();
     };
     return { source, gain };
@@ -159,22 +178,25 @@ class Mixer {
 
   async select(scene: SoundScene) {
     if (scene === this.scene) return;
+    const previous = this.scene;
     const version = ++this.sceneVersion;
     this.scene = scene;
     if (this.loop) {
       const { source, gain } = this.loop;
       const now = this.context.currentTime;
-      setGain(gain.gain, 0, now, .65);
-      source.stop(now + .67);
+      const fade = previous === 'menu' ? .65 : .24;
+      setGain(gain.gain, 0, now, fade);
+      this.loopAvailableAt = now + fade + .02;
+      source.stop(this.loopAvailableAt);
       this.loop = null;
     }
     if (scene === 'silent') return;
     const track = loops[scene];
     const buffer = await this.load(track.file, track.overlap);
     if (!buffer || version !== this.sceneVersion) return;
-    this.loop = this.voice(buffer, track.channel);
+    this.loop = this.voice(buffer, track.channel, 'cutoff' in track ? track.cutoff : undefined);
     const { source, gain } = this.loop;
-    const now = this.context.currentTime;
+    const now = Math.max(this.context.currentTime, this.loopAvailableAt);
     source.loop = true;
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(track.gain, now + (scene === 'menu' ? 1.2 : .75));
@@ -184,7 +206,7 @@ class Mixer {
   async play(sound: Sound) {
     const clip: Clip | undefined = sound in clips ? clips[sound as keyof typeof clips] : undefined;
     const channel = clip?.channel ?? 'sfx';
-    if (this.preferences.muted || !this.preferences[channel] || this.pending.has(sound)) return;
+    if (this.preferences.muted || this.preferences.disabled[channel] || !this.preferences[channel] || this.pending.has(sound)) return;
     const now = this.context.currentTime;
     const cooldown = clip?.cooldown ?? .13;
     if (now - (this.last.get(sound) ?? -Infinity) < cooldown) return;
@@ -195,7 +217,8 @@ class Mixer {
     }
     this.pending.add(sound);
     const buffer = await this.load(clip.file);
-    if (!buffer || this.preferences.muted || !this.preferences[channel] || this.context.state === 'closed') {
+    if (!buffer || this.preferences.muted || this.preferences.disabled[channel] ||
+        !this.preferences[channel] || this.context.state === 'closed') {
       this.pending.delete(sound);
       return;
     }
@@ -250,11 +273,11 @@ export function useAudio(scene: SoundScene) {
         void audio.select(desired.current.scene);
       } catch { /* El navegador permite jugar aunque el audio no esté disponible. */ }
     }
-    window.addEventListener('pointerdown', unlock, true);
-    window.addEventListener('keydown', unlock, true);
+    const gestures = ['pointerdown', 'pointerup', 'keydown', 'click'] as const;
+    for (const event of gestures) window.addEventListener(event, unlock, true);
+    unlock();
     return () => {
-      window.removeEventListener('pointerdown', unlock, true);
-      window.removeEventListener('keydown', unlock, true);
+      for (const event of gestures) window.removeEventListener(event, unlock, true);
       mixer.current?.close();
       mixer.current = null;
     };

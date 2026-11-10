@@ -193,13 +193,30 @@
   font-size: clamp(10px, 2.7cqw, 40px);
   letter-spacing: .11em;
 }
-.menu-saver small { font-size: .48em; }
-.fx-on .menu-saver > span { animation: saver-drift 11s ease-in-out infinite alternate; }
-@keyframes saver-drift {
-  from { transform: translate(-14%, -60%); }
-  to { transform: translate(18%, 65%); }
+.menu-saver > span {
+  --logo-width: min(58%, 14cqw);
+  --logo-height: 1.5em;
+  position: absolute;
+  left: calc((100% - var(--logo-width)) / 2);
+  top: calc((100% - var(--logo-height)) / 2);
+  width: var(--logo-width);
+  height: var(--logo-height);
+  display: grid;
+  place-content: center;
+  white-space: nowrap;
+  text-shadow: 0 0 .55em #72edac60;
+}
+.fx-on .menu-saver > span {
+  animation: saver-x 16s -5s linear infinite alternate, saver-y 21s -3s linear infinite alternate;
+}
+@keyframes saver-x {
+  from { left: 5%; }
+  to { left: calc(95% - var(--logo-width)); }
+}
+@keyframes saver-y {
+  from { top: 7%; }
+  to { top: calc(93% - var(--logo-height)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .fx-on .menu-saver > span { animation: none; }
 }
-

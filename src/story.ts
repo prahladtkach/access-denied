@@ -3,7 +3,7 @@ import type { Ending, FileId, ObjectId } from './game.ts';
 export const objects: Record<ObjectId, {name: string; text: string}> = {
   desk: {name:'Computadora',text:'El monitor todavía recibe corriente. Una nota doblada sobresale del teclado.'},
   note: {name:'Nota del escritorio',text:'Consola de mantenimiento: ingresá el valor que imprima el programa de arranque. La prioridad de operaciones sigue siendo la de C.'},
-  cabinet: {name:'Armario',text:'Dentro hay una tarjeta con el arreglo de acceso y una referencia ASCII: 69 = E, 73 = I, 84 = T, 88 = X.'},
+  cabinet: {name:'Armario',text:'Encontrás la tarjeta del servidor. Dice que la consola muestra la clave letra por letra con printf.'},
   rack: {name:'Rack de servidores',text:'El manual fija cuatro módulos, del 0 al 3. Hay tinta en el reverso.'},
   door: {name:'Puerta electrónica',text:'La cerradura se activa desde el sistema de mantenimiento. El lector indica: CONTROL REMOTO.'},
   clock: {name:'Reloj de pared',text:'23:41. El segundero tiembla sin avanzar. Se quedó en la hora en que sonó la cerradura.'},
@@ -20,5 +20,3 @@ export const endings: Record<Ending, {label: string; text: string; line: string}
   'THE TRUTH': {label:'La verdad',line:'PRUEBAS SELLADAS · SALIDA LOCAL HABILITADA',text:'Salís con una copia íntegra para la auditoría. El correo y el informe exponen a NEXUS. La bitácora demuestra lo que Adrián hizo esa noche.'},
   'UNKNOWN WINS': {label:'UNKNOWN gana',line:'ADMINISTRADOR TRANSFERIDO · SALIDA REVOCADA',text:'Adrián se queda con los archivos y el control del edificio. La puerta se traba. «Te dije que solo necesitaba una cosa. Tendrías que haber revisado qué me estabas entregando.»'},
 };
-
-

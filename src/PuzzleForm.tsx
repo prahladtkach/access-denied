@@ -39,7 +39,6 @@ export function PuzzleForm({ puzzle, onSubmit }: { puzzle: Puzzle; onSubmit: (an
           </span>
         </li>)}
       </ol>
-      {puzzle.id === 'S3' && <code className="fixed-line">{'}'} {/* cierre fijo */}</code>}
     </> : <label className="answer">
       {puzzle.kind === 'debug' ? 'Condición en C' : 'Respuesta'}
       <input autoFocus autoComplete="off" spellCheck={false} value={answer} onChange={event => setAnswer(event.target.value)} />

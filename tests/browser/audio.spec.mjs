@@ -25,10 +25,18 @@ test('producción sirve y decodifica todas las pistas de audio', async ({ page }
   expect(decoded.find(track => track.file === 'terror/unknown.mp3').seconds).toBeGreaterThan(4.8);
 });
 
-test('música por gesto y fundido al salir, avatar y transmisión sin duplicados', async ({ page }) => {
+test('intento de reproducción inicial, fundido al salir, avatar y transmisión sin duplicados', async ({ page }) => {
   await page.addInitScript(() => {
     window.audioStarts = [];
     window.loopStops = [];
+    const NativeContext = window.AudioContext;
+    window.AudioContext = class extends NativeContext {
+      constructor() {
+        super();
+        window.menuAudio = this;
+        window.createdBeforeGesture = !navigator.userActivation.hasBeenActive;
+      }
+    };
     const start = AudioBufferSourceNode.prototype.start;
     const stop = AudioBufferSourceNode.prototype.stop;
     AudioBufferSourceNode.prototype.start = function (...args) {
@@ -42,7 +50,9 @@ test('música por gesto y fundido al salir, avatar y transmisión sin duplicados
   });
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Acercarse al monitor' })).toBeVisible();
-  expect(await page.evaluate(() => window.audioStarts)).toEqual([]);
+  await expect.poll(() => page.evaluate(() => window.createdBeforeGesture)).toBe(true);
+  await page.locator('.menu-scene').click({ position: { x: 10, y: 10 } });
+  await expect.poll(() => page.evaluate(() => window.menuAudio.state)).toBe('running');
   await click(page, 'Acercarse al monitor');
   await expect.poll(() => page.evaluate(() => window.audioStarts.some(item => item.loop && item.duration > 60))).toBe(true);
   await click(page, 'Nueva partida');
@@ -87,6 +97,9 @@ test('los tres niveles y el silencio se guardan de forma independiente', async (
   await music.press('Home');
   await ambience.press('End');
   await expect(effects).toHaveValue('41');
+  await page.getByRole('checkbox', { name: 'Desactivar ambiente' }).check();
+  await page.getByRole('checkbox', { name: 'Desactivar música' }).check();
+  await expect(page.getByRole('checkbox', { name: 'Desactivar efectos de sonido' })).not.toBeChecked();
   await page.getByRole('checkbox', { name: 'Silenciar sonidos' }).check();
   await page.reload();
   await click(page, 'Acercarse al monitor');
@@ -94,5 +107,8 @@ test('los tres niveles y el silencio se guardan de forma independiente', async (
   await expect(music).toHaveValue('0');
   await expect(ambience).toHaveValue('100');
   await expect(effects).toHaveValue('41');
+  await expect(page.getByRole('checkbox', { name: 'Desactivar ambiente' })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Desactivar música' })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Desactivar efectos de sonido' })).not.toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Silenciar sonidos' })).toBeChecked();
 });

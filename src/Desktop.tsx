@@ -20,6 +20,8 @@ type WindowInfo = {
   mode: 'open' | 'minimized' | 'closed';
   x: number;
   y: number;
+  width?: number;
+  height?: number;
 };
 const defaultWindows: Record<AppId, WindowInfo> = {
   terminal: { mode: 'open', x: 0.39, y: 0.25 },
@@ -29,6 +31,11 @@ const defaultWindows: Record<AppId, WindowInfo> = {
   configuración: { mode: 'closed', x: 0.59, y: 0.31 },
   unknown: { mode: 'closed', x: 0.99, y: 0.09 },
 };
+
+const resizeEdges = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as const;
+type ResizeEdge = typeof resizeEdges[number];
+const edgePadding = 8;
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 export function useDesktop() {
   const [windows, setWindows] = useState(defaultWindows);
@@ -45,8 +52,11 @@ export function useDesktop() {
   }
 
   function move(id: AppId, x: number, y: number) {
-    const clamp = (value: number) => Math.max(0, Math.min(1, value));
-    setWindows(previous => ({ ...previous, [id]: { ...previous[id], x: clamp(x), y: clamp(y) } }));
+    setWindows(previous => ({ ...previous, [id]: { ...previous[id], x: clamp(x, 0, 1), y: clamp(y, 0, 1) } }));
+  }
+
+  function resize(id: AppId, geometry: Pick<WindowInfo, 'x' | 'y' | 'width' | 'height'>) {
+    setWindows(previous => ({ ...previous, [id]: { ...previous[id], ...geometry } }));
   }
 
   function reset() {
@@ -54,7 +64,7 @@ export function useDesktop() {
     setStack(['terminal']);
   }
 
-  return { windows, stack, active, focus, setMode, move, reset };
+  return { windows, stack, active, focus, setMode, move, resize, reset };
 }
 
 export interface Notice {
@@ -87,12 +97,15 @@ interface DesktopProps {
 }
 
 export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt, booting, muted, toggleMute, security, play }: DesktopProps) {
-  const { active, windows, stack, focus, setMode, move } = state;
+  const { active, windows, stack, focus, setMode, move, resize } = state;
   const workspace = useRef<HTMLDivElement>(null);
   const controls = useRef<Partial<Record<AppId, HTMLButtonElement | null>>>({});
   const launchers = useRef<Partial<Record<AppId, HTMLButtonElement | null>>>({});
   const taskButtons = useRef<Partial<Record<AppId, HTMLButtonElement | null>>>({});
   const drag = useRef<{ id: AppId; originX: number; originY: number; left: number; top: number } | null>(null);
+  const resizing = useRef<{
+    id: AppId; edge: ResizeEdge; x: number; y: number; left: number; top: number; right: number; bottom: number;
+  } | null>(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [expiredToast, setExpiredToast] = useState<string | null>(null);
   const [showNotices, setShowNotices] = useState(false);
@@ -155,6 +168,39 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
     const travel = getTravel(event.currentTarget);
     move(id, (start.left + event.clientX - start.originX) / travel.x,
       (start.top + event.clientY - start.originY) / travel.y);
+  }
+
+  function startResize(event: PointerEvent<HTMLSpanElement>, id: AppId, edge: ResizeEdge) {
+    const frame = event.currentTarget.closest<HTMLElement>('.os-window');
+    if (event.button !== 0 || !frame) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const { offsetLeft: left, offsetTop: top, offsetWidth: width, offsetHeight: height } = frame;
+    resizing.current = { id, edge, x: event.clientX, y: event.clientY, left, top, right: left + width, bottom: top + height };
+  }
+
+  function updateResize(event: PointerEvent<HTMLSpanElement>, id: AppId) {
+    const area = workspace.current;
+    const start = resizing.current;
+    if (!area || !start || start.id !== id) return;
+    const rightBound = area.clientWidth - edgePadding;
+    const bottomBound = area.clientHeight - edgePadding;
+    const minWidth = Math.min(id === 'unknown' ? 250 : 340, rightBound - edgePadding);
+    const minHeight = Math.min(232, bottomBound - edgePadding);
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    const { edge } = start;
+    const left = edge.includes('w') ? clamp(start.left + dx, edgePadding, start.right - minWidth) : start.left;
+    const right = edge.includes('e') ? clamp(start.right + dx, start.left + minWidth, rightBound) : start.right;
+    const top = edge.includes('n') ? clamp(start.top + dy, edgePadding, start.bottom - minHeight) : start.top;
+    const bottom = edge.includes('s') ? clamp(start.bottom + dy, start.top + minHeight, bottomBound) : start.bottom;
+    const width = right - left;
+    const height = bottom - top;
+    resize(id, {
+      width, height,
+      x: clamp((left - edgePadding) / Math.max(1, rightBound - edgePadding - width), 0, 1),
+      y: clamp((top - edgePadding) / Math.max(1, bottomBound - edgePadding - height), 0, 1),
+    });
   }
 
   function moveWithKeyboard(event: KeyboardEvent<HTMLButtonElement>, id: AppId) {
@@ -230,7 +276,11 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
         const info = windows[id];
         return <section key={id} aria-label={'Ventana de ' + app.name} aria-hidden={info.mode !== 'open'} inert={info.mode !== 'open'} data-mode={info.mode}
           className={'os-window ' + (active === id ? 'os-active ' : '') + (id === 'unknown' ? 'os-remote' : '')}
-          style={{ '--x': info.x, '--y': info.y, zIndex: stack.indexOf(id) + 2 } as CSSProperties}
+          style={{
+            '--x': info.x, '--y': info.y, zIndex: stack.indexOf(id) + 2,
+            '--resized-w': info.width ? info.width + 'px' : undefined,
+            '--resized-h': info.height ? info.height + 'px' : undefined,
+          } as CSSProperties}
           onPointerDown={() => focus(id)} onFocusCapture={() => focus(id)}>
           <div className="os-titlebar">
             <button type="button" className="os-handle" aria-label={'Mover ' + app.name + ' con las flechas'}
@@ -247,6 +297,10 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
           </div>
           <div className="os-window-body">{renderApp(id)}</div>
           <div className="os-window-status">{app.subtitle}<span>{id === 'unknown' ? 'EXTERNO' : 'LOCAL'}</span></div>
+          {resizeEdges.map(edge => <span key={edge} className="os-resize" data-edge={edge} aria-hidden="true"
+            onPointerDown={event => startResize(event, id, edge)}
+            onPointerMove={event => updateResize(event, id)}
+            onLostPointerCapture={() => { resizing.current = null; }} />)}
         </section>;
       })}
       {popup === 'context' && <aside className="os-popup os-context" style={{ left: context.x, top: context.y }} aria-label="Acciones del escritorio">

@@ -20,13 +20,13 @@ export function FileExplorer({ mounted, archive, onRead, renderFile }: {
   const current = folder && folders[folder];
 
   if (!mounted) return <>
-    <p className="eyebrow">NEXUS / VOLUMEN NO MONTADO</p>
+    <p className="eyebrow">NEXUS / SERVIDOR BLOQUEADO</p>
     <h2>Explorador de archivos</h2>
-    <p>Volumen bloqueado. Montá el servidor para leer su contenido.</p>
+    <p>Usá la clave de la tarjeta del armario para abrir los archivos del servidor.</p>
   </>;
 
   return <>
-    <div className="file-path"><span>VOLUMEN NEXUS</span> / {folder ?? 'raíz'} {document && '/ ' + files[document].name}</div>
+    <div className="file-path"><span>SERVIDOR NEXUS</span> / {folder ?? 'raíz'} {document && '/ ' + files[document].name}</div>
     <div className="file-layout">
       <nav aria-label="Carpetas del servidor">
         <button className="file-root" aria-pressed={!folder} onClick={() => { setFolder(null); setDocument(null); }}>⌂ Raíz</button>
@@ -36,7 +36,7 @@ export function FileExplorer({ mounted, archive, onRead, renderFile }: {
           </button>)}
       </nav>
       <div className="file-list">
-        {!current ? <><h2>Volumen NEXUS</h2><p>Elegí una carpeta para ver sus documentos.</p></> : <>
+        {!current ? <><h2>Archivos de NEXUS</h2><p>Elegí una carpeta para ver sus documentos.</p></> : <>
           <button className="file-document" onClick={() => { setDocument(current.file); onRead(current.file); }}>
             <span aria-hidden="true">▤ </span>{files[current.file].name}
           </button>

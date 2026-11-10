@@ -9,7 +9,6 @@
 }
 .nexus-os .os-window[data-mode="closed"] { transform: scale(.975); }
 .nexus-os .os-window[data-mode="minimized"] { transform: translateY(24px) scale(.94); }
-.nexus-os .os-remote { --window-height: min(252px, calc(100% - 16px)); }
 .nexus-os .os-window[data-mode="open"] { opacity: 1; transform: none; }
 .fx-on .os-window[data-mode="open"]::after {
   content: '';
@@ -127,3 +126,17 @@
   .fx-on .nexus-os .os-toast, .fx-on .os-boot i { animation: none; }
   .fx-on .os-window[data-mode="open"]::after { content: none; }
 }
+
+/* Resize grips stay inside the frame, including when a window reaches an edge. */
+.os-resize { position: absolute; z-index: 3; touch-action: none; }
+.os-resize[data-edge="n"], .os-resize[data-edge="s"] { left: 11px; right: 11px; height: 6px; cursor: ns-resize; }
+.os-resize[data-edge="e"], .os-resize[data-edge="w"] { top: 11px; bottom: 11px; width: 6px; cursor: ew-resize; }
+.os-resize[data-edge^="n"] { top: 0; }
+.os-resize[data-edge^="s"] { bottom: 0; }
+.os-resize[data-edge$="e"] { right: 0; }
+.os-resize[data-edge$="w"] { left: 0; }
+.os-resize[data-edge="nw"], .os-resize[data-edge="ne"],
+.os-resize[data-edge="sw"], .os-resize[data-edge="se"] { width: 11px; height: 11px; }
+.os-resize[data-edge="nw"], .os-resize[data-edge="se"] { cursor: nwse-resize; }
+.os-resize[data-edge="ne"], .os-resize[data-edge="sw"] { cursor: nesw-resize; }
+.os-active .os-resize[data-edge="se"] { background: linear-gradient(135deg, transparent 55%, #83bdab70 56%, transparent 65%, #83bdab70 72%, transparent 81%); }

@@ -53,7 +53,6 @@ pre { padding: 14px; background: #071212; color: var(--green); border: 1px solid
 .line-order li { background: #0a1515; padding: 5px 8px; margin: 4px 0; }
 .line-order li span { margin-left: 12px; display: inline-flex; gap: 4px; }
 .line-order button { padding: .15em .45em; }
-.fixed-line { display: block; margin-left: 2rem; color: var(--muted); }
 .muted, footer { color: var(--muted); }
 .end-panel { padding: clamp(20px, 6vw, 64px); }
 .end-panel h1 { color: var(--green); font-size: clamp(2rem, 7vw, 4.3rem); }
@@ -163,8 +162,10 @@ footer { padding-block: 5px; background: #0a1013; border-top: 1px solid #263b38;
   border: 1px solid currentColor; background: #10262a; box-shadow: 3px 3px #0009, inset 0 -4px #0005;
 }
 .os-window {
-  --window-width: min(690px, calc(100% - 16px));
-  --window-height: min(490px, calc(100% - 16px));
+  --default-width: 690px;
+  --default-height: 490px;
+  --window-width: min(var(--resized-w, var(--default-width)), calc(100% - 16px));
+  --window-height: min(var(--resized-h, var(--default-height)), calc(100% - 16px));
   position: absolute;
   left: calc(8px + (100% - var(--window-width) - 16px) * var(--x));
   top: calc(8px + (100% - var(--window-height) - 16px) * var(--y));
@@ -176,8 +177,8 @@ footer { padding-block: 5px; background: #0a1013; border-top: 1px solid #263b38;
 .os-window[hidden] { display: none; }
 .os-window.os-active { border-color: #88c8b3; }
 .os-window.os-remote {
-  --window-width: min(290px, calc(100% - 16px));
-  --window-height: min(190px, calc(100% - 16px));
+  --default-width: 290px;
+  --default-height: 252px;
   border-color: #a26860; background: #201818;
 }
 .os-titlebar {
@@ -238,7 +239,7 @@ footer { padding-block: 5px; background: #0a1013; border-top: 1px solid #263b38;
   .os-icons button { min-height: 54px; }
 }
 @media (max-width: 670px) {
-  .os-window { --window-width: min(690px, calc(100% - 86px)); }
+  .os-window { --default-width: min(690px, calc(100% - 86px)); }
   .os-icons button { width: 71px; font-size: .64rem; }
   .top .logo { letter-spacing: 0; }
   .top-actions button { padding-inline: .35rem; font-size: .65rem; }

@@ -68,7 +68,7 @@ export function MainMenu({ canContinue, newGame, continueGame, openOptions, acti
           </div>
           {!near && !idle && <button ref={monitor} className="menu-monitor" onClick={() => frameMonitor(true)} aria-label="Acercarse al monitor" />}
           {idle && <button ref={wake} className="menu-saver" aria-label="Reactivar monitor" onClick={wakeMonitor}>
-            <span aria-hidden="true">◇ NEXUS OS</span><small>MODO DE ESPERA</small>
+            <span aria-hidden="true">◇ NEXUS</span>
           </button>}
         </div>
       </div>
