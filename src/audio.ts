@@ -59,11 +59,12 @@ interface Clip {
 
 const clips = {
   lock: { file: 'interfaz/lock.ogg', gain: .6 },
+  door: { file: 'interfaz/door-jiggle.ogg', gain: .43, cooldown: .75, duration: 1.15 },
   mouse: { file: 'interfaz/mouse.wav', gain: .34 },
   key: { file: 'interfaz/key.mp3', gain: .27, cooldown: .11 },
   open: { file: 'interfaz/window-open.mp3', gain: .45 },
   close: { file: 'interfaz/window-close.mp3', gain: .43 },
-  clock: { file: 'ambiente/clock.ogg', gain: .32, channel: 'ambience' },
+  clock: { file: 'ambiente/clock-tick.wav', gain: .22, channel: 'ambience', cooldown: .65 },
   crt: { file: 'terror/crt.mp3', gain: .18, duration: .32 },
   alert: { file: 'terror/alarm.ogg', gain: .34, duration: .95 },
   unknown: { file: 'terror/unknown.mp3', gain: .49, duration: 4.8, cooldown: 8 },
@@ -72,6 +73,16 @@ const clips = {
 const tones = {
   link: [[410, 0, .08], [280, .1, .19]],
   boot: [[160, 0, .12], [240, .14, .18]],
+  hover: [[530, 0, .036]],
+  menu: [[300, 0, .065], [450, .045, .074]],
+  inspect: [[230, 0, .055]],
+  minimize: [[335, 0, .072], [224, .046, .075]],
+  restore: [[224, 0, .06], [335, .045, .08]],
+  success: [[415, 0, .12], [555, .075, .19]],
+  error: [[205, 0, .1], [154, .075, .13]],
+  escape: [[131, 0, .38], [196, .11, .54]],
+  truth: [[147, 0, .37], [220, .10, .43], [294, .22, .5]],
+  takeover: [[118, 0, .40], [83, .13, .52]],
 } as const;
 export type Sound = keyof typeof clips | keyof typeof tones;
 
@@ -208,7 +219,7 @@ class Mixer {
     const channel = clip?.channel ?? 'sfx';
     if (this.preferences.muted || this.preferences.disabled[channel] || !this.preferences[channel] || this.pending.has(sound)) return;
     const now = this.context.currentTime;
-    const cooldown = clip?.cooldown ?? .13;
+    const cooldown = clip?.cooldown ?? (sound === 'hover' ? .32 : .13);
     if (now - (this.last.get(sound) ?? -Infinity) < cooldown) return;
     this.last.set(sound, now);
     if (!clip) {
@@ -241,7 +252,7 @@ class Mixer {
       const oscillator = this.context.createOscillator();
       const gain = this.context.createGain();
       oscillator.frequency.setValueAtTime(frequency, now + delay);
-      gain.gain.setValueAtTime(.16, now + delay);
+      gain.gain.setValueAtTime(sound === 'hover' ? .035 : .11, now + delay);
       gain.gain.exponentialRampToValueAtTime(.001, now + delay + duration);
       oscillator.connect(gain).connect(this.buses.sfx);
       oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };

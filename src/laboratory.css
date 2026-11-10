@@ -33,6 +33,11 @@
 .lab-dark .lab-light { fill: #405550; }
 .fx-on .lab-scene { animation: lab-arrive 160ms ease-out; }
 .fx-on .lab-monitor { animation: lab-monitor 8s steps(1, end) infinite; }
+.fx-on .lab-stalled-hand {
+  transform-origin: 745px 169px;
+  animation: lab-stall 2s steps(1, end) infinite;
+}
+@keyframes lab-stall { 0%, 53%, 100% { transform: rotate(0); } 50% { transform: rotate(2deg); } }
 @keyframes lab-arrive { from { opacity: .65; } to { opacity: 1; } }
 @keyframes lab-monitor { 0%, 92%, 100% { opacity: 1; } 89% { opacity: .76; } }
 
@@ -100,5 +105,5 @@
   .laboratory { grid-template-rows: minmax(0, 1fr) auto clamp(96px, 23dvh, 154px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .fx-on .lab-scene, .fx-on .lab-monitor { animation: none; }
+  .fx-on .lab-scene, .fx-on .lab-monitor, .fx-on .lab-stalled-hand { animation: none; }
 }

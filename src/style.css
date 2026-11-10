@@ -294,5 +294,6 @@ footer { padding-block: 5px; background: #0a1013; border-top: 1px solid #263b38;
   pointer-events: none;
 }
 .view-pc > .hud { left: 105px; }
+.lab-system-time { color: #a2c1ba; font-variant-numeric: tabular-nums; }
 .view-pc .os-workspace { margin-top: 42px; }
 .case-purpose { margin: .8em 0 0; max-width: 68ch; color: #afc7bd; font-size: .86rem; }

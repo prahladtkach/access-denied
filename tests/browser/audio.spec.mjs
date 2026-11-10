@@ -10,7 +10,7 @@ const click = (page, name) => page.getByRole('button', { name, exact: true }).cl
 
 test('producción sirve y decodifica todas las pistas de audio', async ({ page }) => {
   await page.goto('/');
-  expect(audioFiles).toHaveLength(12);
+  expect(audioFiles).toHaveLength(13);
   const decoded = await page.evaluate(async files => {
     const context = new OfflineAudioContext(1, 44100, 44100);
     return await Promise.all(files.map(async file => {
@@ -58,11 +58,15 @@ test('intento de reproducción inicial, fundido al salir, avatar y transmisión 
   await click(page, 'Nueva partida');
   await expect.poll(() => page.evaluate(() => window.loopStops.some(delay => delay >= .5))).toBe(true);
   await click(page, 'Entrar al laboratorio');
+  const tick = page.waitForResponse(response => response.url().endsWith('/ambiente/clock-tick.wav') && response.ok());
   await click(page, 'Reloj de pared');
+  await tick;
   await click(page, 'Mirar hacia Área de servicio');
   await expect(page.getByRole('button', { name: 'Rack de servidores' })).toBeVisible();
   await click(page, 'Mirar hacia Salida');
+  const latch = page.waitForResponse(response => response.url().endsWith('/interfaz/door-jiggle.ogg') && response.ok());
   await click(page, 'Puerta electrónica');
+  await latch;
   await click(page, 'Probar la puerta');
   await click(page, 'Mirar hacia Puesto de trabajo');
   await click(page, 'Computadora');

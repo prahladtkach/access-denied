@@ -64,6 +64,11 @@ async function finalCheckpoint(page, evidence = 'skip') {
   await answer(page, 'permiso == 1');
   await click(page, 'Abrir reto · P3');
   await order(page, ['int pulso = 0;', 'pulso = pulso + 2;', 'pulso = pulso * 3;', 'printf("%d", pulso);']);
+  if (evidence === 'keep') {
+    await click(page, /UNKNOWN \/ mensaje inyectado/);
+    await expect(page.getByRole('region', { name: 'Ventana de UNKNOWN' })).toContainText('tardó tres semanas');
+    await click(page, 'Cerrar UNKNOWN');
+  }
   await click(page, '← Habitación');
   await look(page, 'Área de servicio');
   await inspect(page, 'Armario');
@@ -118,6 +123,7 @@ test('ESCAPE: todos los retos principales y salida por la puerta física', async
   await click(page, 'Ir a la puerta');
   await click(page, 'Salir del laboratorio');
   await expect(page.getByRole('heading', { name: 'ESCAPE', exact: true })).toBeVisible();
+  await expect(page.locator('[data-ending="escape"] .end-closing')).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -133,6 +139,7 @@ test('THE TRUTH: persiste la evidencia, se sella y se vuelve al checkpoint', asy
   await answer(page, '23');
   await click(page, 'Resguardar las pruebas y salir');
   await expect(page.getByRole('heading', { name: 'THE TRUTH', exact: true })).toBeVisible();
+  await expect(page.locator('[data-ending="truth"] .end-closing')).toContainText('Copia verificada');
   await click(page, 'Volver al punto de control final');
   await click(page, 'Registros');
   await expect(page.getByText('Registro protegido contra escritura.')).toBeVisible();
@@ -146,6 +153,7 @@ test('UNKNOWN WINS: transferencia confirmada y segundo fallo del protocolo', asy
   await click(page, 'Responder a UNKNOWN');
   await click(page, 'Transferir control');
   await expect(page.getByRole('heading', { name: 'UNKNOWN WINS', exact: true })).toBeVisible();
+  await expect(page.locator('[data-ending="remote"] .end-closing')).toBeVisible();
   await click(page, 'Volver al punto de control final');
   await lastDefense(page);
   await click(page, 'Abrir reto · P6');
@@ -311,9 +319,59 @@ test('el CRT muestra un salvapantallas y vuelve al encuadre anterior', async ({ 
   await expect(button(page, 'Reactivar monitor')).toBeVisible();
   await expect(page.getByText('MODO DE ESPERA')).toHaveCount(0);
   await expect(page.locator('.menu-saver > span')).toHaveCSS('animation-name', 'saver-x, saver-y');
+  const gaps = await page.locator('.menu-saver > span').evaluate(logo => {
+    const crt = logo.parentElement.getBoundingClientRect();
+    const axes = Object.fromEntries(logo.getAnimations().map(animation => [animation.animationName, animation]));
+    function set(axis, edge) {
+      const animation = axes['saver-' + axis];
+      const { duration, delay } = animation.effect.getTiming();
+      animation.pause();
+      animation.currentTime = delay + duration * edge;
+    }
+    set('x', 2);
+    set('y', 2);
+    const start = logo.getBoundingClientRect();
+    set('x', 1);
+    set('y', 1);
+    const end = logo.getBoundingClientRect();
+    return [start.left - crt.left, start.top - crt.top, end.right - crt.right, end.bottom - crt.bottom];
+  });
+  for (const gap of gaps) expect(Math.abs(gap)).toBeLessThan(1);
   await expect(button(page, 'Nueva partida')).toHaveCount(0);
   await button(page, 'Reactivar monitor').press('Enter');
   await expect(button(page, 'Nueva partida')).toBeFocused();
+});
+
+test('el póster original carga y el reloj de sesión avanza mientras el de pared sigue detenido', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/');
+  await click(page, 'Acercarse al monitor');
+  await click(page, 'Nueva partida');
+  await click(page, 'Entrar al laboratorio');
+  const poster = page.locator('[data-prop="cat-poster"]');
+  await expect(poster).toBeVisible();
+  expect(await poster.evaluate(async element => {
+    const image = new Image();
+    image.src = element.href.baseVal;
+    await image.decode();
+    return image.naturalWidth;
+  })).toBeGreaterThan(400);
+  const room = page.locator('time.lab-system-time');
+  await expect(room).toHaveText(/^23:41:/);
+  await page.clock.fastForward(62_000);
+  await expect(room).toHaveText(/^23:42:/);
+  await inspect(page, 'Reloj de pared');
+  await expect(page.getByText(/23:41\. El segundero tiembla/)).toBeVisible();
+  await tryDoor(page);
+  await useComputer(page);
+  const os = page.locator('time.os-clock');
+  await expect(os.locator('b')).toHaveText(/^23:42:/);
+  await page.clock.fastForward(60_000);
+  await expect(os.locator('b')).toHaveText(/^23:43:/);
+  await click(page, 'Pausa y ajustes');
+  const paused = await os.getAttribute('datetime');
+  await page.clock.fastForward(60_000);
+  await expect(os).toHaveAttribute('datetime', paused);
 });
 
 test('las otras seis variantes de ataque aceptan soluciones de C básico', async ({ page }) => {

@@ -40,10 +40,10 @@
   <ellipse cx="942" cy="366" rx="602" ry="346" fill="url(#light)"/>
   <!-- A plant left beside the terminal, barely inside the light spill. -->
   <path d="M472 470h154v15H472z" fill="#141d1b" />
-  <path d="M519 431h67l-12 42h-42z" fill="#252b26" stroke="#111918" stroke-width="4"/>
-  <path d="M515 424h76v11h-76z" fill="#303b31"/>
-  <path d="M554 424v-77m1 62-28-32m28 19 32-30m-33 11-21-36m21 31 23-40" stroke="#374b3d" stroke-width="4"/>
-  <path d="M551 363q-29-4-32-40 27 11 32 40zm12 10q-5-31 25-54 1 36-25 54zm-26 25q-24 1-43-31 29 2 43 31zm29 7q12-32 47-38-13 29-47 38zm-14-51q-14-20 1-47 16 27-1 47z" fill="#283c32"/>
+  <path d="M519 431h67l-12 42h-42z" fill="#171f1d" stroke="#101719" stroke-width="4"/>
+  <path d="M515 424h76v11h-76z" fill="#1d2822"/>
+  <path d="M554 424v-77m1 62-28-32m28 19 32-30m-33 11-21-36m21 31 23-40" stroke="#283b30" stroke-width="4"/>
+  <path d="M551 363q-29-4-32-40 27 11 32 40zm12 10q-5-31 25-54 1 36-25 54zm-26 25q-24 1-43-31 29 2 43 31zm29 7q12-32 47-38-13 29-47 38zm-14-51q-14-20 1-47 16 27-1 47z" fill="#1b2b26"/>
 
   <path d="M0 553l182-54h1094l164 54v214H0z" fill="url(#wood)"/>
   <path d="M0 553l182-54h1094l164 54v167H0z" fill="url(#grain)"/>

@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { attacks, isCorrect, main, recovery, seal } from './puzzles';
 import { canSeal, checkpointNames, loadGame, mainLock, reducer, saveGame, scriptedAttack } from './game';
 import type { Ending, FileId, ObjectId } from './game';
-import { endings, files, objects } from './story';
+import { files, objects } from './story';
 import { PuzzleForm } from './PuzzleForm';
 import { Desktop, useDesktop } from './Desktop';
 import type { AppId, Notice } from './Desktop';
@@ -14,6 +14,8 @@ import type { Direction } from './Laboratory';
 import { useAudio } from './audio';
 import { Preferences } from './Preferences';
 import { UnknownAvatar } from './UnknownAvatar';
+import { EndingScreen } from './EndingScreen';
+import { useGameClock } from './game-clock';
 import './style.css';
 
 type View = 'menu' | 'intro' | 'room' | 'pc';
@@ -25,7 +27,6 @@ function App() {
   const [view, setView] = useState<View>('menu');
   const desktop = useDesktop();
   const [desktopSession, setDesktopSession] = useState(0);
-  const [bootTime, setBootTime] = useState(() => Date.now());
   const [started, setStarted] = useState(() => {
     try { return localStorage.getItem(sessionKey) === '1'; } catch { return false; }
   });
@@ -36,6 +37,7 @@ function App() {
   const [direction, setDirection] = useState<Direction>('salida');
   const [osReady, setOsReady] = useState(false);
   const [readingLog, setReadingLog] = useState(false);
+  const [selectedTransmission, setSelectedTransmission] = useState<string | null>(null);
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [feedback, setFeedback] = useState('');
   const [paused, setPaused] = useState(false);
@@ -51,6 +53,8 @@ function App() {
   const dark = p.intrusion >= 3 && !backupLight;
   const timing = game.attack?.remaining != null;
   const playing = view === 'pc' || view === 'room';
+  const clock = useGameClock(playing && !paused && !confirm && !game.ending && !lost);
+  const lastEnding = useRef(game.ending);
   const attackWave = game.attack ? p.wave : null;
   const lastInterference = useRef<number | null>(null);
   const canContinue = started || p.stage > 0 || p.clues.length > 0 || lost || Boolean(game.ending);
@@ -58,6 +62,13 @@ function App() {
     !due && !lost && !game.ending && view === 'pc' && desktop.active === 'terminal' && p.stage >= 2 && p.stage <= 4;
 
   useEffect(() => saveGame(localStorage, game), [game]);
+  useEffect(() => {
+    const ending = game.ending;
+    if (ending && ending !== lastEnding.current) {
+      play(ending === 'ESCAPE' ? 'escape' : ending === 'THE TRUTH' ? 'truth' : 'takeover');
+    }
+    lastEnding.current = ending;
+  }, [game.ending, play]);
   useEffect(() => {
     if (attackWave === null) lastInterference.current = null;
     else if (playing && lastInterference.current !== attackWave) {
@@ -125,7 +136,7 @@ function App() {
     retry(0);
     dispatch({type:'reset'});
     setStarted(true);
-    setBootTime(Date.now());
+    clock.reset();
     try { localStorage.setItem(sessionKey, '1'); } catch { /* La sesión puede jugarse sin guardado. */ }
     setView('intro');
   }
@@ -138,13 +149,15 @@ function App() {
   }
 
   function tryDoor() {
+    play('door');
     play('link');
     dispatch({type:'advanceOpening'});
   }
 
   function useComputer() {
-    if (!osReady) play('boot');
+    play(osReady ? 'open' : 'boot');
     if (p.opening === 'contact') {
+      setSelectedTransmission(null);
       desktop.setMode('unknown', 'open');
       play('unknown');
     }
@@ -152,6 +165,8 @@ function App() {
   }
 
   function acknowledgeContact() {
+    play('close');
+    setSelectedTransmission(null);
     dispatch({type:'advanceOpening'});
     desktop.setMode('unknown', 'closed');
     desktop.setMode('terminal', 'open');
@@ -171,7 +186,8 @@ function App() {
 
   function inspect(id: ObjectId) {
     setInspected(id);
-    if (id === 'clock') play('clock');
+    play(id === 'clock' ? 'clock' : id === 'door' && p.stage < 6 ? 'door' : 'inspect');
+    if (id === 'rack' && p.stage >= 4 && !dark && !p.clues.includes('rack')) play('crt');
     if (id !== 'rack' || !dark || p.clues.includes('rack')) dispatch({type:'inspect', id});
   }
 
@@ -180,6 +196,7 @@ function App() {
     look(stage ? 'puesto' : 'salida');
     setOsReady(false);
     setBackupLight(false);
+    setSelectedTransmission(null);
     desktop.reset();
     setDesktopSession(value => value + 1);
     setConfirm(null);
@@ -196,9 +213,11 @@ function App() {
     if (!challenge) return;
     const puzzle = challenge === 'main' ? main[p.stage] : challenge === 'seal' ? seal : recovery;
     if (isCorrect(puzzle, input)) {
+      play('success');
       setFeedback('VALIDADO · ' + puzzle.explanation);
       setChallenge(null);
     } else {
+      play('error');
       setFeedback(challenge === 'main' && p.stage === 5
         ? 'ADVERTENCIA · UNKNOWN interceptó el primer intento. Revisá la pista o restaurá el último punto. Otro fallo le cederá el control.'
         : 'La respuesta no coincide. Revisá la pista y probá de nuevo.');
@@ -211,6 +230,7 @@ function App() {
     if (id === 'access') {
       setReadingLog(true);
       if (p.log === 'pending' && !p.files.includes('access')) {
+        setSelectedTransmission(null);
         desktop.setMode('unknown', 'open');
         play('unknown');
       }
@@ -252,10 +272,7 @@ function App() {
     id: 'first-contact', title: 'Conexión remota entrante', text: 'El usuario externo abrió un canal de voz local.', app: 'unknown', remote: true,
   });
   if (p.stage >= 2 && p.clues.includes('clock')) notices.push({
-    id: 'clock-observation', title: 'UNKNOWN / 23:41', text: 'Veo que el reloj también te llamó la atención.', app: 'unknown', remote: true,
-  });
-  if (p.stage >= 4 && p.clues.includes('rack')) notices.push({
-    id: 'rack-observation', title: 'UNKNOWN / canal abierto', text: 'Te escuché junto al rack. El interruptor de red sigue donde lo dejaron.', app: 'unknown', remote: true,
+    id: 'clock-observation', title: 'UNKNOWN / 23:41', text: '23:41. Hasta el reloj de la pared sabe cuándo dejar de trabajar. NEXUS OS no recibió el aviso.', app: 'unknown', remote: true,
   });
   if (p.stage >= 2) notices.push({
     id: 'external', title: 'UNKNOWN / canal externo', text: 'Se estableció una conexión entrante.', app: 'unknown', remote: true,
@@ -274,6 +291,17 @@ function App() {
   });
   if (due) notices.push({
     id: 'threat-' + p.stage, title: 'Alerta de seguridad', text: 'La terminal detectó una solicitud de intrusión.', app: 'terminal',
+  });
+  if (p.stage === 3) notices.push({
+    id: 'cabinet-open', title: 'UNKNOWN / mensaje inyectado',
+    text: 'Un pulso de seis. NEXUS tardó tres semanas en aprobar ese cerrojo. Sacá la tarjeta del armario antes de que cambien de opinión.',
+    app: 'unknown', remote: true,
+  });
+  if (p.stage === 4 && !due && p.clues.includes('rack')) notices.push({
+    id: 'rack-observation', title: 'UNKNOWN / canal abierto',
+    text: p.reportRoute ? 'Vi que diste vuelta el manual. No toques el cable hasta que tengas una copia.'
+      : 'El micrófono sigue encendido. Si sacás el cable ahora, perdemos los dos.',
+    app: 'unknown', remote: true,
   });
 
   function renderEditor() {
@@ -321,7 +349,9 @@ function App() {
         <button autoFocus className="primary" onClick={() => { play('alert'); dispatch({type:'start'}); }}>Iniciar defensa</button>
       </div> : <div className="pane">
         <PuzzleForm key={attackPuzzle.id} puzzle={attackPuzzle} onSubmit={input => {
-          setFeedback(isCorrect(attackPuzzle, input) ? 'ATAQUE BLOQUEADO · ' + attackPuzzle.explanation :
+          const correct = isCorrect(attackPuzzle, input);
+          play(correct ? 'success' : 'error');
+          setFeedback(correct ? 'ATAQUE BLOQUEADO · ' + attackPuzzle.explanation :
             'DEFENSA FALLIDA · Intrusión +1. ' + attackPuzzle.explanation);
           dispatch({type:'defend', input, at:Date.now()});
         }} />
@@ -330,7 +360,7 @@ function App() {
 
   let screen;
   if (view === 'menu') {
-    screen = <MainMenu canContinue={canContinue} active={!paused && !confirm}
+    screen = <MainMenu canContinue={canContinue} active={!paused && !confirm} play={play}
       newGame={() => canContinue ? setConfirm('reset') : beginNewSession()}
       continueGame={() => setView(game.attack ? 'pc' : p.opening === 'shift' ? 'intro' : 'room')}
       openOptions={() => setPaused(true)} />;
@@ -345,15 +375,8 @@ function App() {
       </div>
     </section>;
   } else if (game.ending) {
-    const end = endings[game.ending];
-    screen = <section className="end-panel">
-      <p className="eyebrow">ARCHIVO DE SESIÓN / FIN</p><h1>{game.ending}</h1>
-      <h2>{end.label}</h2><p className="status-line">{end.line}</p><p>{end.text}</p>
-      <div className="actions">
-        {game.checkpoints.some(cp => cp.stage === 5) && <button className="primary" onClick={() => retry(5)}>Volver al punto de control final</button>}
-        <button onClick={() => setConfirm('reset')}>Nueva partida</button>
-      </div>
-    </section>;
+    screen = <EndingScreen ending={game.ending} restart={() => setConfirm('reset')}
+      retry={game.checkpoints.some(cp => cp.stage === 5) ? () => retry(5) : undefined} />;
   } else if (lost) {
     screen = <section className="end-panel danger">
       <p className="eyebrow">INTRUSIÓN / 5 DE 5</p><h1>SYSTEM FAILURE</h1>
@@ -378,10 +401,10 @@ function App() {
           {inspected === 'rack' && p.clues.includes('rack') && (p.reportRoute
             ? <p className="hint">Ruta recuperada: /archivo/informe_original.txt. Ya aparece en Archivos.</p>
             : <button onClick={() => dispatch({type:'findReport'})}>Revisar el reverso del manual</button>)}
-          {inspected === 'rack' && p.intrusion >= 2 &&
-            <p className="lab-observation">El altavoz del rack cruje. «Te vi acercarte.»</p>}
+          {inspected === 'rack' && p.stage === 4 && p.clues.includes('rack') &&
+            <p className="lab-observation">El altavoz del rack cruje. «Tenés la mano cerca del cable. Si lo sacás ahora, perdemos los dos.»</p>}
           {inspected === 'clock' && p.opening !== 'locked' && p.opening !== 'shift' &&
-            <p className="lab-observation">Desde el puesto llega un zumbido. El segundero se queda quieto.</p>}
+            <p className="lab-observation">Desde el puesto llega un zumbido. El segundero intenta avanzar y vuelve al mismo sitio.</p>}
           {inspected === 'door' && p.opening === 'locked' &&
             <button className="primary" onClick={tryDoor}>Probar la puerta</button>}
           {inspected === 'door' && p.opening === 'contact' &&
@@ -392,7 +415,7 @@ function App() {
             <button className="primary" onClick={useComputer}>Usar computadora</button>}
           {inspected === 'door' && p.stage === 6 && <button className="primary" onClick={() => finish('ESCAPE')}>Salir del laboratorio</button>}
         </> : <>
-          <p className="eyebrow">23:41 / NEXUS SYSTEMS</p>
+          <p className="eyebrow">NEXUS SYSTEMS / HORA LOCAL</p>
           {p.opening === 'locked' ? <p className="lab-event" role="status">CLAC. La cerradura electrónica acaba de activarse.</p>
             : p.opening === 'contact' ? <p className="lab-event">El tono viene del puesto de trabajo. Alguien está esperando del otro lado.</p>
             : <p>El pasillo sigue a oscuras. El zumbido del laboratorio es lo único que se escucha.</p>}
@@ -404,7 +427,7 @@ function App() {
         <div className="unknown-identity"><UnknownAvatar /><div>
           <p className="eyebrow">ENLACE ENTRANTE / REMITENTE DESCONOCIDO</p><h2>UNKNOWN</h2>
         </div></div>
-        <p>«{unknownMessage}»</p>
+        <p>«{p.opening === 'contact' ? unknownMessage : selectedTransmission ?? unknownMessage}»</p>
         {p.opening === 'contact' && <button className="primary" onClick={acknowledgeContact}>Silenciar el canal</button>}
       </div>;
       if (id === 'configuración') return <>
@@ -439,8 +462,9 @@ function App() {
       return <>
           <p className="eyebrow">CONSOLA / SESIÓN LOCAL</p>
           <h2>{p.stage === 6 ? 'Control local recuperado' : objective}</h2>
-          {p.stage >= 2 && p.stage < 6 && <p className="unknown"><strong>UNKNOWN</strong> · {p.stage < 4
-            ? 'Abrí los archivos del servidor. Ahí está el informe que necesito. Después hablamos de la puerta.'
+          {p.stage >= 2 && p.stage < 6 && <p className="unknown"><strong>UNKNOWN</strong> · {p.stage === 2
+            ? 'Arreglaste en un minuto el filtro que NEXUS vendía como infalible. Ahora necesito la tarjeta del armario.'
+            : p.stage === 3 ? 'La tarjeta está en el armario que acabás de abrir. Necesito el informe, no los demás archivos.'
             : p.log === 'kept' ? 'Ese registro no te protege. Entregame el acceso y terminemos.'
             : p.log === 'deleted' ? 'Bien. Ya borraste mi rastro. Ahora necesito el acceso.'
             : 'Leé el correo. Si querés que ese informe salga del edificio, necesito acceso a los archivos.'}</p>}
@@ -469,7 +493,8 @@ function App() {
     }
 
     screen = <Desktop key={desktopSession} state={desktop} leave={() => { look('puesto'); changeView('room'); }}
-      renderApp={renderApp} notices={notices} bootTime={bootTime} interrupt={interrupt}
+      renderApp={renderApp} notices={notices} clock={clock} interrupt={interrupt}
+      onRemoteNotice={notice => { setSelectedTransmission(notice.text); play('link'); }}
       booting={!osReady && !interrupt} muted={preferences.muted} security={p.intrusion} play={play}
       toggleMute={() => setPreferences({ ...preferences, muted: !preferences.muted })} />;
   }
@@ -478,10 +503,11 @@ function App() {
   useEffect(() => {
     const wave = previousAttack.current;
     if (wave !== null && !game.attack && p.wave === wave + 1 && !feedback && !lost) {
+      play('error');
       setFeedback('TIEMPO AGOTADO · Intrusión +1. Revisá el diagnóstico antes de seguir.');
     }
     previousAttack.current = game.attack ? p.wave : null;
-  }, [game.attack, p.wave, feedback, lost]);
+  }, [game.attack, p.wave, feedback, lost, play]);
 
   return <main ref={shell} className={['game-shell', 'view-' + view, effects && 'fx-on', effects && p.intrusion > 0 && 'effects'].filter(Boolean).join(' ')}>
     <header className="top" inert={paused || confirm !== null}>
@@ -498,8 +524,12 @@ function App() {
         <span className="meter" aria-hidden="true">{Array.from({length:5}, (_, i) => <i key={i} className={i < p.intrusion ? 'filled' : ''} />)}</span>
         {p.intrusion}/5
       </span>
+      {view === 'room' && !game.ending && <time className="lab-system-time" dateTime={clock.stamp} title="Hora de NEXUS OS">{clock.time}</time>}
     </div>}
-    <div className="game-screen" inert={paused || confirm !== null}>
+    <div className="game-screen" inert={paused || confirm !== null} onClickCapture={event => {
+      if ((view === 'intro' || view === 'room' && !game.ending) &&
+          (event.target as Element).closest('button:not(.lab-target):not(.primary)')) play('mouse');
+    }}>
       {screen}
       {displayError && <p className="display-error" role="alert">{displayError}</p>}
       {playing && feedback && !game.ending && !lost && <p className="feedback" role="status">{feedback}

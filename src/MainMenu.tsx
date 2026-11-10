@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { Sound } from './audio';
 import './main-menu.css';
 
 interface MainMenuProps {
@@ -7,9 +8,10 @@ interface MainMenuProps {
   continueGame: () => void;
   openOptions: () => void;
   active: boolean;
+  play: (sound: Sound) => void;
 }
 
-export function MainMenu({ canContinue, newGame, continueGame, openOptions, active }: MainMenuProps) {
+export function MainMenu({ canContinue, newGame, continueGame, openOptions, active, play }: MainMenuProps) {
   const [near, setNear] = useState(false);
   const [idle, setIdle] = useState(false);
   const monitor = useRef<HTMLButtonElement>(null);
@@ -48,10 +50,16 @@ export function MainMenu({ canContinue, newGame, continueGame, openOptions, acti
     requestAnimationFrame(() => (near ? firstOption : monitor).current?.focus({ preventScroll: true }));
   }
 
-  return <section className={'menu-scene' + (near ? ' menu-near' : '')} aria-label="Menú principal">
+  return <section className={'menu-scene' + (near ? ' menu-near' : '')} aria-label="Menú principal"
+    onClickCapture={event => {
+      if ((event.target as Element).closest('button:not(:disabled)')) play('menu');
+    }} onPointerOver={event => {
+      const control = (event.target as Element).closest('button:not(:disabled)');
+      if (control && !(event.relatedTarget instanceof Node && control.contains(event.relatedTarget))) play('hover');
+    }}>
     <div className="menu-stage">
       <div className="menu-camera">
-        <div className="menu-steam" aria-hidden="true"><i /><i /></div>
+        <div className="menu-steam" aria-hidden="true"><i /><i /><i /><i /></div>
         <div className="menu-crt">
           <div className="menu-crt-content" inert={idle} aria-hidden={idle}>
             <div className="menu-crt-header">
@@ -68,7 +76,13 @@ export function MainMenu({ canContinue, newGame, continueGame, openOptions, acti
           </div>
           {!near && !idle && <button ref={monitor} className="menu-monitor" onClick={() => frameMonitor(true)} aria-label="Acercarse al monitor" />}
           {idle && <button ref={wake} className="menu-saver" aria-label="Reactivar monitor" onClick={wakeMonitor}>
-            <span aria-hidden="true">◇ NEXUS</span>
+            <span aria-hidden="true">
+              <svg viewBox="0 0 125 26">
+                <path d="M13 0 26 13 13 26 0 13zm0 5L5 13l8 8 8-8z" fill="currentColor" fillRule="evenodd" />
+                <path d="M34 24V2l14 22V2m19 0H56v22h11M56 13h10m8-11 14 22m0-22L74 24M95 2v22h12V2m18 0h-11v11h9v11h-11"
+                  stroke="currentColor" strokeWidth="2.8" fill="none" />
+              </svg>
+            </span>
           </button>}
         </div>
       </div>

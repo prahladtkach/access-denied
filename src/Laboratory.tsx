@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { ObjectId } from './game';
 import { objects } from './story';
+import catPoster from './assets/lab-cat-poster.jpg';
 import './laboratory.css';
 
 export const directions = ['salida', 'puesto', 'servicio'] as const;
@@ -70,13 +71,19 @@ function LabArt({ direction, locked }: { direction: Direction; locked: boolean }
       <path d="M578 312h24v8h-24zM418 397h205v9H418z" fill="#71817b" />
       <path d="M653 266h27v46h-27z" fill="#152023" stroke="#546762" strokeWidth="3" />
       <path d="M659 276h15v7h-15z" fill={locked ? '#eaa075' : '#8bd3a4'} />
-      <path d="M201 204h108v154H201z" fill="#131e20" stroke="#354845" strokeWidth="4" />
-      <path d="M223 229h62v6h-62zm0 16h44v4h-44zm0 12h55v4h-55z" fill="#5e7268" />
-      <path d="M237 312l26-27 23 27z" fill="#706945" />
+      <g>
+        <path d="M204 211h110v148H204z" fill="#0d171a" opacity=".65" />
+        <path d="M198 203h110v148H198z" fill="#242c2a" stroke="#485650" strokeWidth="4" />
+        <path d="M204 209h98v136H204z" fill="#807b66" />
+        <image href={catPoster} x="209" y="214" width="88" height="88" preserveAspectRatio="xMidYMid meet" opacity=".78" data-prop="cat-poster" />
+        <path d="M205 210h96v134h-96z" fill="#172321" opacity=".26" />
+        <text x="253" y="322" textAnchor="middle" fontSize="10" letterSpacing="1.3" fill="#ded3ab">UN TURNO</text>
+        <text x="253" y="335" textAnchor="middle" fontSize="10" letterSpacing="1.3" fill="#ded3ab">MÁS</text>
+      </g>
       <circle cx="745" cy="169" r="45" fill="#111a1d" stroke="#435751" strokeWidth="8" />
       <circle cx="745" cy="169" r="33" fill="#929a85" />
-      <path d="M745 140v7m0 44v7m-29-29h7m44 0h7m-29 0-12 15m12-15-10-20" fill="none" stroke="#233233" strokeWidth="3" />
-      <path d="M745 169l19 6" stroke="#a35f49" strokeWidth="2" />
+      <path d="M745 140v7m0 44v7m-29-29h7m44 0h7m-29 0-20 9m20-9-3-14" fill="none" stroke="#233233" strokeWidth="3" />
+      <path className="lab-stalled-hand" d="M745 169l19 6" stroke="#a35f49" strokeWidth="2" />
       <text x="420" y="116" fill="#9da998" fontSize="15" letterSpacing="5">SALIDA / 07</text>
     </>}
     {direction === 'puesto' && <>

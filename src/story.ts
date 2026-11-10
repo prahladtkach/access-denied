@@ -6,7 +6,7 @@ export const objects: Record<ObjectId, {name: string; text: string}> = {
   cabinet: {name:'Armario',text:'Encontrás la tarjeta del servidor. Dice que la consola muestra la clave letra por letra con printf.'},
   rack: {name:'Rack de servidores',text:'El manual fija cuatro módulos, del 0 al 3. Hay tinta en el reverso.'},
   door: {name:'Puerta electrónica',text:'La cerradura se activa desde el sistema de mantenimiento. El lector indica: CONTROL REMOTO.'},
-  clock: {name:'Reloj de pared',text:'23:41. El segundero tiembla sin avanzar. Se quedó en la hora en que sonó la cerradura.'},
+  clock: {name:'Reloj de pared',text:'23:41. El segundero tiembla sin avanzar desde que sonó la cerradura. El reloj de NEXUS OS sigue en marcha.'},
 };
 
 export const files: Record<FileId, {name: string; source: string; text: string}> = {

@@ -87,7 +87,8 @@ interface DesktopProps {
   leave: () => void;
   renderApp: (id: AppId) => ReactNode;
   notices: Notice[];
-  bootTime: number;
+  clock: { time: string; date: string; stamp: string };
+  onRemoteNotice: (notice: Notice) => void;
   interrupt?: ReactNode;
   booting: boolean;
   muted: boolean;
@@ -96,7 +97,7 @@ interface DesktopProps {
   play: (sound: Sound) => void;
 }
 
-export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt, booting, muted, toggleMute, security, play }: DesktopProps) {
+export function Desktop({ state, leave, renderApp, notices, clock, onRemoteNotice, interrupt, booting, muted, toggleMute, security, play }: DesktopProps) {
   const { active, windows, stack, focus, setMode, move, resize } = state;
   const workspace = useRef<HTMLDivElement>(null);
   const controls = useRef<Partial<Record<AppId, HTMLButtonElement | null>>>({});
@@ -114,19 +115,13 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
   const startButton = useRef<HTMLButtonElement>(null);
   const startFirst = useRef<HTMLButtonElement>(null);
   const locked = booting || Boolean(interrupt);
-  const [clock, setClock] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setClock(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   useEffect(() => {
     if (popup) startFirst.current?.focus();
   }, [popup]);
 
   function open(id: AppId) {
-    play('open');
+    play(windows[id].mode === 'minimized' ? 'restore' : 'open');
     const previousFocus = document.activeElement;
     setPopup(null);
     setMode(id, 'open');
@@ -138,7 +133,7 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
   }
 
   function hide(id: AppId, mode: 'minimized' | 'closed') {
-    play('close');
+    play(mode === 'minimized' ? 'minimize' : 'close');
     setMode(id, mode);
     const target = mode === 'minimized' ? taskButtons.current[id] : launchers.current[id];
     const nextWindow = stack.filter(item => item !== id && windows[item].mode === 'open').at(-1);
@@ -222,15 +217,10 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
     const timer = window.setTimeout(() => setExpiredToast(toastId), 6500);
     return () => window.clearTimeout(timer);
   }, [toastId]);
-  const elapsed = Math.max(0, Math.floor((clock - bootTime) / 60_000));
-  const total = 23 * 60 + 41 + elapsed;
-  const minutes = total % (24 * 60);
-  const day = new Date(Date.UTC(2004, 10, 10 + Math.floor(total / (24 * 60))));
-  const date = new Intl.DateTimeFormat('es-AR', { timeZone: 'UTC', dateStyle: 'short' }).format(day);
-  const time = [Math.floor(minutes / 60), minutes % 60].map(part => String(part).padStart(2, '0')).join(':');
   function readNotice(notice: Notice) {
     setDismissed(previous => [...previous, notice.id]);
     setShowNotices(false);
+    if (notice.remote) onRemoteNotice(notice);
     open(notice.app);
   }
 
@@ -247,7 +237,8 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
   }
 
   return <section className="nexus-os" aria-label="Escritorio NEXUS OS" onClickCapture={event => {
-    if (event.detail > 0 && (event.target as Element).closest('button')) play('mouse');
+    const control = (event.target as Element).closest('button');
+    if (control && !control.closest('.os-icons, .os-running, .os-window-actions, .os-popup, .os-notice-row, .puzzle .primary')) play('mouse');
   }} onInputCapture={event => {
     if ((event.target as Element).matches('input:not([type]), input[type="text"]')) play('key');
   }} onKeyDown={event => {
@@ -351,7 +342,7 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
         <button aria-label="Seguridad del sistema" title={'Seguridad · Intrusión ' + security + '/5'}
           className={security ? 'os-warning' : ''} onClick={() => open('diagnóstico')}>⬡</button>
       </div>
-      <time className="os-clock" dateTime={day.toISOString().slice(0, 10) + 'T' + time}><b>{time}</b><small>{date}</small></time>
+      <time className="os-clock" dateTime={clock.stamp} title="Hora de NEXUS OS"><b>{clock.time}</b><small>{clock.date}</small></time>
     </div>
     {booting && <div className="os-boot" aria-label="Arrancando NEXUS OS">
       <span aria-hidden="true">◇</span>

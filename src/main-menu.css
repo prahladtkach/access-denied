@@ -144,25 +144,35 @@
 }
 .menu-steam {
   position: absolute;
-  left: 24.8%;
-  top: 51%;
-  width: 5.6%;
-  height: 13%;
-  mask-image: linear-gradient(0deg, #000, transparent);
-  opacity: .43;
+  left: 23.3%;
+  top: 50%;
+  width: 8%;
+  height: 15%;
+  pointer-events: none;
 }
 .menu-steam i {
   position: absolute;
-  inset: 0 25% 0 12%;
-  border-radius: 47%;
-  border-right: .17cqw solid #b1c1a9;
-  transform: skew(-14deg);
+  left: var(--steam-left);
+  bottom: 1%;
+  width: 24%;
+  height: var(--steam-height);
+  border-radius: 54% 48% 40% 49%;
+  border-right: .12cqw solid #c6d2b9;
+  mask-image: linear-gradient(0deg, transparent, #000 31%, #000 56%, transparent);
+  opacity: .16;
+  transform: skewX(-13deg) translateY(-18%);
 }
-.menu-steam i + i { inset: 12% 50% 8% 2%; transform: skew(12deg); }
-.fx-on .menu-steam { animation: coffee-heat 6s ease-in-out infinite; }
+.menu-steam i:nth-child(1) { --steam-left: 38%; --steam-height: 53%; --steam-time: 7s; --steam-delay: -2s; --steam-drift: 45%; }
+.menu-steam i:nth-child(2) { --steam-left: 28%; --steam-height: 67%; --steam-time: 9s; --steam-delay: -5s; --steam-drift: -55%; }
+.menu-steam i:nth-child(3) { --steam-left: 48%; --steam-height: 39%; --steam-time: 6s; --steam-delay: -3s; --steam-drift: 62%; }
+.menu-steam i:nth-child(4) { --steam-left: 43%; --steam-height: 48%; --steam-time: 11s; --steam-delay: -8s; --steam-drift: -33%; }
+.fx-on .menu-steam i { animation: coffee-heat var(--steam-time) var(--steam-delay) linear infinite; }
 @keyframes coffee-heat {
-  0%, 100% { opacity: .29; transform: translateY(4%); }
-  50% { opacity: .53; transform: translateY(-8%); }
+  0% { opacity: 0; transform: translate(0, 14%) skewX(-8deg) scale(.68); }
+  24% { opacity: .27; transform: translate(-12%, -12%) skewX(7deg) scale(.83); }
+  48% { opacity: .21; transform: translate(19%, -42%) skewX(-14deg); }
+  76% { opacity: .12; transform: translate(calc(var(--steam-drift) * .6), -75%) skewX(12deg) scale(1.13); }
+  100% { opacity: 0; transform: translate(var(--steam-drift), -105%) skewX(-9deg) scale(1.21); }
 }
 @media (max-aspect-ratio: 5/4) {
   .menu-near .menu-camera { transform: translate(-21%, 6.8%) scale(2.66); }
@@ -175,7 +185,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .menu-camera { transition: none; }
-  .fx-on .menu-crt::after, .fx-on .menu-steam { animation: none; }
+  .fx-on .menu-crt::after, .fx-on .menu-steam i { animation: none; }
 }
 
 .menu-crt .menu-saver {
@@ -194,28 +204,26 @@
   letter-spacing: .11em;
 }
 .menu-saver > span {
-  --logo-width: min(58%, 14cqw);
-  --logo-height: 1.5em;
   position: absolute;
-  left: calc((100% - var(--logo-width)) / 2);
-  top: calc((100% - var(--logo-height)) / 2);
-  width: var(--logo-width);
-  height: var(--logo-height);
-  display: grid;
-  place-content: center;
-  white-space: nowrap;
-  text-shadow: 0 0 .55em #72edac60;
+  left: 50%;
+  top: 50%;
+  width: min(58%, 14cqw);
+  aspect-ratio: 125 / 26;
+  transform: translateX(-50%);
+  translate: 0 -50%;
+  filter: drop-shadow(0 0 .35em #72edac60);
 }
+.menu-saver svg { display: block; width: 100%; height: 100%; }
 .fx-on .menu-saver > span {
   animation: saver-x 16s -5s linear infinite alternate, saver-y 21s -3s linear infinite alternate;
 }
 @keyframes saver-x {
-  from { left: 5%; }
-  to { left: calc(95% - var(--logo-width)); }
+  from { left: 0; transform: translateX(0); }
+  to { left: 100%; transform: translateX(-100%); }
 }
 @keyframes saver-y {
-  from { top: 7%; }
-  to { top: calc(93% - var(--logo-height)); }
+  from { top: 0; translate: 0 0; }
+  to { top: 100%; translate: 0 -100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .fx-on .menu-saver > span { animation: none; }
