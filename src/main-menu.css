@@ -21,6 +21,7 @@
   transition: transform 760ms cubic-bezier(.25, .68, .16, 1);
 }
 .menu-near .menu-camera { transform: translate(-21%, 6.8%) scale(2.08); }
+.game-shell:not(.fx-on) .menu-camera { transition: none; }
 
 .menu-crt {
   position: absolute;
@@ -175,5 +176,30 @@
 @media (prefers-reduced-motion: reduce) {
   .menu-camera { transition: none; }
   .fx-on .menu-crt::after, .fx-on .menu-steam { animation: none; }
+}
+
+.menu-crt .menu-saver {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  width: 100%;
+  display: grid;
+  place-content: center;
+  gap: .65cqw;
+  background: #071411;
+  color: #8dddaf;
+  border: none;
+  border-radius: inherit;
+  font-size: clamp(10px, 2.7cqw, 40px);
+  letter-spacing: .11em;
+}
+.menu-saver small { font-size: .48em; }
+.fx-on .menu-saver > span { animation: saver-drift 11s ease-in-out infinite alternate; }
+@keyframes saver-drift {
+  from { transform: translate(-14%, -60%); }
+  to { transform: translate(18%, 65%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fx-on .menu-saver > span { animation: none; }
 }
 

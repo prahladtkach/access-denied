@@ -24,7 +24,7 @@ export const main: Puzzle[] = [
   {
     id: 'P2', kind: 'debug', title: 'Autenticación defectuosa',
     prompt: 'Reemplazá la condición dentro de if. El acceso debe concederse solo cuando las claves coincidan.',
-    code: 'int claveIngresada = 1234;\nint claveCorrecta = 1234;\nif (claveIngresada = claveCorrecta) {\n    abrirTerminal();\n}',
+    code: 'int claveIngresada = 0;\nint claveCorrecta = 1234;\nscanf("%d", &claveIngresada);\nif (claveIngresada = claveCorrecta) {\n    abrirTerminal();\n} else {\n    denegarAcceso();\n}',
     answers: ['claveIngresada == claveCorrecta', 'claveCorrecta == claveIngresada'],
     hint: 'En C, == compara. Un solo = asigna y devuelve el valor asignado.',
     explanation: 'La comparación devuelve verdadero únicamente si las claves coinciden. Antes, cualquier clave correcta distinta de cero habilitaba el acceso.',

@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties, KeyboardEvent, PointerEvent, ReactNode } from 'react';
+import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from 'react';
+import './desktop-phase3.css';
 
-export type AppId = 'terminal' | 'archivos' | 'registros' | 'diagnóstico' | 'unknown';
+export type AppId = 'terminal' | 'archivos' | 'registros' | 'diagnóstico' | 'configuración' | 'unknown';
 
 const apps = {
   terminal: { name: 'Terminal', icon: '>_', subtitle: 'MANTENIMIENTO', color: '#60e9c2' },
   archivos: { name: 'Archivos', icon: '▰', subtitle: 'EXPLORADOR DE VOLUMEN', color: '#edbb77' },
   registros: { name: 'Registros', icon: '≡', subtitle: 'BITÁCORA DE SEGURIDAD', color: '#95afea' },
   diagnóstico: { name: 'Diagnóstico', icon: '＋', subtitle: 'CONTROL LOCAL', color: '#b3d88a' },
+  configuración: { name: 'Configuración', icon: '⚙', subtitle: 'PREFERENCIAS LOCALES', color: '#c7cfd8' },
   unknown: { name: 'UNKNOWN', icon: 'RX', subtitle: 'ORIGEN NO VERIFICADO', color: '#fb9e8f' },
 };
 const shortcuts: AppId[] = ['terminal', 'archivos', 'registros', 'diagnóstico'];
@@ -22,6 +24,7 @@ const defaultWindows: Record<AppId, WindowInfo> = {
   archivos: { mode: 'closed', x: 0.7, y: 0.4 },
   registros: { mode: 'closed', x: 0.76, y: 0.51 },
   diagnóstico: { mode: 'closed', x: 0.65, y: 0.6 },
+  configuración: { mode: 'closed', x: 0.59, y: 0.31 },
   unknown: { mode: 'closed', x: 0.99, y: 0.09 },
 };
 
@@ -67,9 +70,13 @@ interface DesktopProps {
   notices: Notice[];
   bootTime: number;
   interrupt?: ReactNode;
+  booting: boolean;
+  muted: boolean;
+  toggleMute: () => void;
+  security: number;
 }
 
-export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt }: DesktopProps) {
+export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt, booting, muted, toggleMute, security }: DesktopProps) {
   const { active, windows, stack, focus, setMode, move } = state;
   const workspace = useRef<HTMLDivElement>(null);
   const controls = useRef<Partial<Record<AppId, HTMLButtonElement | null>>>({});
@@ -78,6 +85,11 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt 
   const drag = useRef<{ id: AppId; originX: number; originY: number; left: number; top: number } | null>(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [showNotices, setShowNotices] = useState(false);
+  const [popup, setPopup] = useState<'start' | 'context' | null>(null);
+  const [context, setContext] = useState({ x: 0, y: 0 });
+  const startButton = useRef<HTMLButtonElement>(null);
+  const startFirst = useRef<HTMLButtonElement>(null);
+  const locked = booting || Boolean(interrupt);
   const [clock, setClock] = useState(() => Date.now());
 
   useEffect(() => {
@@ -85,18 +97,26 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt 
     return () => window.clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (popup) startFirst.current?.focus();
+  }, [popup]);
+
   function open(id: AppId) {
+    const previousFocus = document.activeElement;
+    setPopup(null);
     setMode(id, 'open');
-    requestAnimationFrame(() => controls.current[id]?.focus());
+    requestAnimationFrame(() => {
+      if (document.activeElement === previousFocus || document.activeElement === document.body) {
+        controls.current[id]?.focus();
+      }
+    });
   }
 
   function hide(id: AppId, mode: 'minimized' | 'closed') {
     setMode(id, mode);
-    requestAnimationFrame(() => {
-      const target = mode === 'minimized' ? taskButtons.current[id] : launchers.current[id];
-      const nextWindow = stack.filter(item => item !== id && windows[item].mode === 'open').at(-1);
-      (target ?? (nextWindow && controls.current[nextWindow]) ?? launchers.current.terminal)?.focus();
-    });
+    const target = mode === 'minimized' ? taskButtons.current[id] : launchers.current[id];
+    const nextWindow = stack.filter(item => item !== id && windows[item].mode === 'open').at(-1);
+    (target ?? (nextWindow && controls.current[nextWindow]) ?? launchers.current.terminal)?.focus();
   }
 
   function getTravel(handle: HTMLElement) {
@@ -138,7 +158,10 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt 
   const unread = notices.filter(notice => !dismissed.includes(notice.id));
   const latest = unread.at(-1);
   const elapsed = Math.max(0, Math.floor((clock - bootTime) / 60_000));
-  const minutes = (23 * 60 + 41 + elapsed) % (24 * 60);
+  const total = 23 * 60 + 41 + elapsed;
+  const minutes = total % (24 * 60);
+  const day = new Date(Date.UTC(2004, 10, 10 + Math.floor(total / (24 * 60))));
+  const date = new Intl.DateTimeFormat('es-AR', { timeZone: 'UTC', dateStyle: 'short' }).format(day);
   const time = [Math.floor(minutes / 60), minutes % 60].map(part => String(part).padStart(2, '0')).join(':');
   function readNotice(notice: Notice) {
     setDismissed(previous => [...previous, notice.id]);
@@ -146,8 +169,30 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt 
     open(notice.app);
   }
 
-  return <section className="nexus-os" aria-label="Escritorio NEXUS OS">
-    <div className="os-workspace" ref={workspace} inert={Boolean(interrupt)}>
+  function showContext(event: MouseEvent<HTMLDivElement>) {
+    if ((event.target as Element).closest('button, nav, .os-window, .os-popup, .os-toast, .os-notice-center')) return;
+    event.preventDefault();
+    const area = event.currentTarget.getBoundingClientRect();
+    setContext({
+      x: Math.max(4, Math.min(event.clientX - area.left, area.width - 206)),
+      y: Math.max(4, Math.min(event.clientY - area.top, area.height - 154)),
+    });
+    setShowNotices(false);
+    setPopup('context');
+  }
+
+  return <section className="nexus-os" aria-label="Escritorio NEXUS OS" onKeyDown={event => {
+    if (event.key === 'Escape' && (popup || showNotices)) {
+      event.stopPropagation();
+      setPopup(null);
+      setShowNotices(false);
+      startButton.current?.focus();
+    }
+  }}>
+    <div className="os-workspace" ref={workspace} inert={locked} onContextMenu={showContext}
+      onPointerDown={event => {
+        if (!(event.target as HTMLElement).closest('.os-popup')) setPopup(null);
+      }}>
       <div className="os-wallpaper" aria-hidden="true">
         <div className="os-watermark"><span>◇</span>NEXUS<span className="os-os">OS</span><small>INFRAESTRUCTURA / TERMINAL 07</small></div>
         <div className="os-wallnote">NX / 07<br/>SISTEMA LOCAL<br/>CANAL AISLADO</div>
@@ -160,7 +205,7 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt 
       {(Object.keys(apps) as AppId[]).map(id => {
         const app = apps[id];
         const info = windows[id];
-        return <section key={id} aria-label={'Ventana de ' + app.name} hidden={info.mode !== 'open'}
+        return <section key={id} aria-label={'Ventana de ' + app.name} aria-hidden={info.mode !== 'open'} inert={info.mode !== 'open'} data-mode={info.mode}
           className={'os-window ' + (active === id ? 'os-active ' : '') + (id === 'unknown' ? 'os-remote' : '')}
           style={{ '--x': info.x, '--y': info.y, zIndex: stack.indexOf(id) + 2 } as CSSProperties}
           onPointerDown={() => focus(id)} onFocusCapture={() => focus(id)}>
@@ -181,7 +226,13 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt 
           <div className="os-window-status">{app.subtitle}<span>{id === 'unknown' ? 'EXTERNO' : 'LOCAL'}</span></div>
         </section>;
       })}
-      {latest && !showNotices && <aside className={'os-toast ' + (latest.remote ? 'os-toast-remote' : '')} aria-label="Notificación reciente">
+      {popup === 'context' && <aside className="os-popup os-context" style={{ left: context.x, top: context.y }} aria-label="Acciones del escritorio">
+        <span>ESCRITORIO LOCAL</span>
+        <button ref={startFirst} onClick={() => open('terminal')}>Abrir terminal</button>
+        <button onClick={() => open('configuración')}>Configurar escritorio</button>
+        <button onClick={() => { setPopup(null); setShowNotices(true); }}>Ver avisos</button>
+      </aside>}
+      {latest && !showNotices && <aside key={latest.id} aria-live="polite" className={'os-toast ' + (latest.remote ? 'os-toast-remote' : '')} aria-label="Notificación reciente">
         <button className="os-toast-body" onClick={() => readNotice(latest)}><strong>{latest.title}</strong><span>{latest.text}</span></button>
         <button aria-label="Descartar notificación" onClick={() => setDismissed(previous => [...previous, latest.id])}>×</button>
       </aside>}
@@ -193,22 +244,42 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt 
         </button>)}
       </aside>}
     </div>
-    <div className="os-taskbar" inert={Boolean(interrupt)}>
-      <button className="os-exit" onClick={leave}>← Habitación</button>
+    {popup === 'start' && !locked && <nav className="os-popup os-start-menu" aria-label="Menú de inicio">
+      <header><b>◇ NEXUS OS</b><small>TERMINAL 07 / LOCAL</small></header>
+      {([...shortcuts, 'configuración'] as AppId[]).map((id, index) => <button key={id}
+        ref={index === 0 ? startFirst : undefined} onClick={() => open(id)}>
+        <span aria-hidden="true" style={{ color: apps[id].color }}>{apps[id].icon}</span>{apps[id].name}
+      </button>)}
+    </nav>}
+    <div className="os-taskbar" inert={locked}>
+      <button ref={startButton} className="os-start" aria-label="Inicio de NEXUS" aria-expanded={popup === 'start'}
+        onClick={() => { setPopup(popup === 'start' ? null : 'start'); setShowNotices(false); }}>
+        <span aria-hidden="true">◇</span> Inicio
+      </button>
       <nav className="os-running" aria-label="Aplicaciones abiertas">
-        {stack.filter(id => windows[id].mode !== 'closed').map(id => <button key={id} aria-label={'Alternar ' + apps[id].name}
+        {(Object.keys(apps) as AppId[]).filter(id => windows[id].mode !== 'closed').map(id => <button key={id} aria-label={'Alternar ' + apps[id].name}
           ref={element => { taskButtons.current[id] = element; }}
-          aria-pressed={id === active} onClick={() => id === active ? hide(id, 'minimized') : open(id)}>
+          aria-pressed={id === active} data-mode={windows[id].mode} title={apps[id].name + (windows[id].mode === 'minimized' ? ' · Minimizada' : id === active ? ' · Activa' : ' · Abierta')} onClick={() => id === active ? hide(id, 'minimized') : open(id)}>
           <span aria-hidden="true">{apps[id].icon}</span> {apps[id].name}
         </button>)}
       </nav>
-      <button className="os-notifications" aria-expanded={showNotices} onClick={() => setShowNotices(!showNotices)}>
-        Avisos{unread.length ? ' [' + unread.length + ']' : ''}
-      </button>
-      <time className="os-clock">{time}</time>
+      <button className="os-exit" onClick={leave}>← Habitación</button>
+      <div className="os-tray" aria-label="Área de notificaciones">
+        <button aria-label={muted ? 'Activar sonido' : 'Silenciar sonido'} title={muted ? 'Activar sonido' : 'Silenciar sonido'}
+          onClick={toggleMute}>{muted ? '♪×' : '♪'}</button>
+        <button aria-label="Conexión y avisos" title="Conexión y avisos" className={unread.some(notice => notice.remote) ? 'os-incoming' : ''}
+          aria-expanded={showNotices} onClick={() => { setPopup(null); setShowNotices(!showNotices); }}>
+          <span aria-hidden="true">⇄</span>{unread.length > 0 && <sup>{unread.length}</sup>}
+        </button>
+        <button aria-label="Seguridad del sistema" title={'Seguridad · Intrusión ' + security + '/5'}
+          className={security ? 'os-warning' : ''} onClick={() => open('diagnóstico')}>⬡</button>
+      </div>
+      <time className="os-clock" dateTime={day.toISOString().slice(0, 10) + 'T' + time}><b>{time}</b><small>{date}</small></time>
     </div>
+    {booting && <div className="os-boot" aria-label="Arrancando NEXUS OS">
+      <span aria-hidden="true">◇</span>
+      <strong>NEXUS OS</strong><small>COMPROBANDO CANAL LOCAL</small><i aria-hidden="true" />
+    </div>}
     {interrupt && <div className="os-interrupt">{interrupt}</div>}
   </section>;
 }
-
-

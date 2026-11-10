@@ -4,7 +4,15 @@ const button = (page, name) => page.getByRole('button', { name, exact: typeof na
 const click = (page, name) => button(page, name).click();
 const terminal = page => click(page, 'Terminal');
 const inspect = (page, name) => click(page, name);
+const look = (page, place) => click(page, 'Mirar hacia ' + place);
+const tryDoor = async page => {
+  await inspect(page, 'Puerta electrónica');
+  await expect(page.getByText(/El lector rechaza tu credencial/)).toBeVisible();
+  await click(page, 'Probar la puerta');
+  await expect(page.getByText(/CONTROL REMOTO/)).toBeVisible();
+};
 const useComputer = async page => {
+  if (!await button(page, 'Computadora').isVisible()) await look(page, 'Puesto de trabajo');
   await inspect(page, 'Computadora');
   await click(page, 'Usar computadora');
 };
@@ -32,9 +40,15 @@ async function terminalRecovered(page) {
   await click(page, 'Acercarse al monitor');
   await click(page, 'Nueva partida');
   await click(page, 'Entrar al laboratorio');
+  await expect(page.getByText(/CLAC/)).toBeVisible();
+  await tryDoor(page);
+  await look(page, 'Puesto de trabajo');
   await inspect(page, 'Nota del escritorio');
   await expect(page.getByText(/ingresá el valor que imprima/)).toBeVisible();
   await useComputer(page);
+  await expect(page.getByRole('region', { name: 'Ventana de UNKNOWN' })).toBeVisible();
+  await expect(button(page, 'Abrir reto · P1')).toHaveCount(0);
+  await click(page, 'Silenciar el canal');
   await click(page, 'Abrir reto · P1');
   await answer(page, '150');
   await expect(page.getByRole('status')).toContainText('no coincide');
@@ -51,6 +65,7 @@ async function finalCheckpoint(page, evidence = 'skip') {
   await click(page, 'Abrir reto · P3');
   await order(page, ['void abrirArmario(void)', 'enviarPulso', 'liberarCerrojo', /^＋ \}$/, 'void mantenimiento']);
   await click(page, '← Habitación');
+  await look(page, 'Área de servicio');
   await inspect(page, 'Armario');
   await expect(page.getByText(/referencia ASCII/)).toBeVisible();
   await useComputer(page);
@@ -60,6 +75,7 @@ async function finalCheckpoint(page, evidence = 'skip') {
   await warn(page);
   await order(page, ['iniciarSesion', 'verificarSesion', 'habilitarSesion']);
   await click(page, '← Habitación');
+  await look(page, 'Área de servicio');
   await inspect(page, 'Rack de servidores');
   if (evidence !== 'skip') await click(page, 'Revisar el reverso del manual');
   await useComputer(page);
@@ -141,7 +157,7 @@ test('UNKNOWN WINS: transferencia confirmada y segundo fallo del protocolo', asy
   await click(page, 'Reiniciar partida');
   await click(page, 'Entrar al laboratorio');
   await expect(page.locator('footer')).toContainText('Inicio');
-  await expect(button(page, 'Nota del escritorio')).toBeVisible();
+  await expect(button(page, 'Puerta electrónica')).toBeVisible();
 });
 
 test('el temporizador respeta la pausa y una intrusión 5/5 permite restaurar', async ({ page }) => {
@@ -178,15 +194,19 @@ test('NEXUS OS: ventanas simultáneas, movimiento, cierre y borrador con mouse y
   await page.keyboard.press('Escape');
   await button(page, 'Nueva partida').press('Enter');
   await page.keyboard.press('Enter');
+  await button(page, 'Puerta electrónica').press('Enter');
+  await button(page, 'Probar la puerta').press('Enter');
+  await expect(page.getByText(/CONTROL REMOTO/)).toBeVisible();
+  await button(page, 'Mirar hacia Puesto de trabajo').press('Enter');
   await expect(button(page, 'Computadora')).toBeVisible();
   await expect(page.locator('.desk .tag')).toHaveCSS('opacity', '0');
   await button(page, 'Computadora').focus();
   await expect(page.locator('.desk .tag')).toHaveCSS('opacity', '1');
-  await button(page, 'Puerta electrónica').press('Enter');
-  await expect(page.getByText(/CONTROL REMOTO/)).toBeVisible();
   await button(page, 'Nota del escritorio').press('Enter');
   await button(page, 'Computadora').press('Enter');
   await button(page, 'Usar computadora').press('Enter');
+  await expect(page.getByLabel('Arrancando NEXUS OS')).toBeHidden();
+  await button(page, 'Silenciar el canal').press('Enter');
   await button(page, 'Abrir reto · P1').press('Enter');
   await page.getByRole('textbox').fill('151');
   await button(page, 'Minimizar Terminal').press('Enter');
@@ -245,3 +265,51 @@ test('el CRT abre el menú con teclado y permite regresar a la vista general', a
   await expect(button(page, 'Nueva partida')).toHaveCount(0);
 });
 
+test('exploración, reloj, arranque, inicio de NEXUS y sonido persistente', async ({ page }) => {
+  await page.goto('/');
+  await click(page, 'Acercarse al monitor');
+  await click(page, 'Nueva partida');
+  await click(page, 'Entrar al laboratorio');
+  await inspect(page, 'Reloj de pared');
+  await expect(page.getByText(/El segundero tiembla/)).toBeVisible();
+  await look(page, 'Área de servicio');
+  await expect(button(page, 'Armario')).toBeVisible();
+  await look(page, 'Salida');
+  await tryDoor(page);
+  await useComputer(page);
+  await expect(page.getByLabel('Arrancando NEXUS OS')).toBeVisible();
+  await expect(button(page, 'Conexión y avisos')).toHaveClass(/os-incoming/);
+  await click(page, 'Silenciar el canal');
+  await page.locator('.os-workspace').click({ button: 'right', position: { x: 1080, y: 400 } });
+  await expect(page.getByRole('complementary', { name: 'Acciones del escritorio' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('complementary', { name: 'Acciones del escritorio' })).toHaveCount(0);
+  await click(page, 'Inicio de NEXUS');
+  const start = page.getByRole('navigation', { name: 'Menú de inicio' });
+  await expect(start.getByRole('button')).toHaveCount(5);
+  await start.getByRole('button', { name: 'Configuración' }).click();
+  const config = page.getByRole('region', { name: 'Ventana de Configuración' });
+  await expect(config).toBeVisible();
+  await click(page, 'Minimizar Configuración');
+  await expect(button(page, 'Alternar Configuración')).toHaveAttribute('data-mode', 'minimized');
+  await click(page, 'Alternar Configuración');
+  await expect(button(page, 'Alternar Configuración')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('time.os-clock')).toHaveAttribute('datetime', /^2004-11-10T/);
+  await click(page, 'Silenciar sonido');
+  await expect(config.getByRole('checkbox', { name: 'Silenciar sonidos' })).toBeChecked();
+  await page.reload();
+  await click(page, 'Acercarse al monitor');
+  await click(page, 'Opciones');
+  await expect(page.getByRole('checkbox', { name: 'Silenciar sonidos' })).toBeChecked();
+});
+
+test('el CRT muestra un salvapantallas y vuelve al encuadre anterior', async ({ page }) => {
+  await page.clock.install();
+  await page.goto('/');
+  await click(page, 'Acercarse al monitor');
+  await page.clock.fastForward(46_000);
+  await expect(button(page, 'Reactivar monitor')).toBeVisible();
+  await expect(button(page, 'Nueva partida')).toHaveCount(0);
+  await button(page, 'Reactivar monitor').press('Enter');
+  await expect(button(page, 'Nueva partida')).toBeFocused();
+});

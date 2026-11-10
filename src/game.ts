@@ -1,6 +1,7 @@
 import { attacks, isCorrect, main, recovery, seal } from './puzzles.ts';
 
-export type ObjectId = 'desk' | 'note' | 'cabinet' | 'rack' | 'door';
+export type ObjectId = 'desk' | 'note' | 'cabinet' | 'rack' | 'door' | 'clock';
+export type Opening = 'shift' | 'locked' | 'contact' | 'done';
 export type FileId = 'mail' | 'access' | 'report';
 export type Ending = 'ESCAPE' | 'THE TRUTH' | 'UNKNOWN WINS';
 
@@ -13,6 +14,7 @@ export interface Progress {
   wave: number;
   sealed: boolean;
   reportRoute?: boolean;
+  opening?: Opening;
 }
 
 type Challenge = 'main' | 'recovery' | 'seal';
@@ -27,6 +29,7 @@ export interface Game {
 
 export type Action =
   | { type: 'inspect'; id: ObjectId }
+  | { type: 'advanceOpening' }
   | { type: 'findReport' }
   | { type: 'read'; id: FileId }
   | { type: 'log'; keep: boolean }
@@ -40,7 +43,7 @@ export type Action =
   | { type: 'reset' };
 
 const initial: Progress = {
-  stage: 0, clues: [], files: [], log: 'pending', intrusion: 0, wave: 0, sealed: false,
+  stage: 0, clues: [], files: [], log: 'pending', intrusion: 0, wave: 0, sealed: false, opening: 'shift',
 };
 
 export function newGame(): Game {
@@ -52,6 +55,7 @@ export const checkpointNames: Record<number, string> = {
 };
 
 export function mainLock(p: Progress) {
+  if (p.stage === 0 && p.opening && p.opening !== 'done') return 'Atendé la conexión entrante antes de usar la terminal.';
   if (p.stage === 0 && !p.clues.includes('note')) return 'Buscá una nota en el escritorio de la habitación.';
   if (p.stage === 3 && !p.clues.includes('cabinet')) return 'El cerrojo se abrió. Revisá el armario en la habitación.';
   if (p.stage === 4 && !p.clues.includes('rack')) return 'Revisá el rack para identificar los módulos de la cerradura.';
@@ -100,6 +104,12 @@ export function reducer(state: Game, action: Action): Game {
   }
 
   switch (action.type) {
+    case 'advanceOpening': {
+      if (p.stage !== 0) return state;
+      const next = { shift: 'locked', locked: 'contact', contact: 'done' } as const;
+      if (!p.opening || p.opening === 'done') return state;
+      return { ...state, progress: { ...p, opening: next[p.opening] } };
+    }
     case 'inspect':
       if (action.id === 'cabinet' && p.stage < 3 || action.id === 'rack' && p.stage < 4) return state;
       if (p.clues.includes(action.id)) return state;

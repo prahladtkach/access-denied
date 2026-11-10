@@ -6,6 +6,7 @@ export const objects: Record<ObjectId, {name: string; text: string}> = {
   cabinet: {name:'Armario',text:'Dentro hay una tarjeta con el arreglo de acceso y una referencia ASCII: 69 = E, 73 = I, 84 = T, 88 = X.'},
   rack: {name:'Rack de servidores',text:'El manual fija cuatro módulos, del 0 al 3. Hay tinta en el reverso.'},
   door: {name:'Puerta electrónica',text:'La cerradura se activa desde el sistema de mantenimiento. El lector indica: CONTROL REMOTO.'},
+  clock: {name:'Reloj de pared',text:'23:41. El segundero tiembla sin avanzar. Se quedó en la hora en que sonó la cerradura.'},
 };
 
 export const files: Record<FileId, {name: string; source: string; text: string}> = {

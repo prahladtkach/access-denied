@@ -13,7 +13,9 @@ npm.cmd run dev
 
 Abrí [http://127.0.0.1:5173](http://127.0.0.1:5173) o la dirección que muestre Vite. Activá el monitor con clic o con **Tab** y **Enter** para acercarte al menú. Usá **Pantalla completa** para ampliar el juego y **Esc** o **Pausa y ajustes** para pausar. El avance y los puntos de control del MVP siguen disponibles en el mismo navegador y dirección.
 
-En el laboratorio, pasá el cursor sobre los objetos o usá **Tab** para descubrirlos. Activá el objeto con clic o **Enter**. En NEXUS OS, abrí las aplicaciones desde el escritorio. Arrastrá la barra de título o enfócala y usá las flechas para mover una ventana. Podés recuperar las ventanas minimizadas desde la barra de tareas.
+El laboratorio tiene tres vistas conectadas: salida, puesto de trabajo y área de servicio. En la introducción, probá la puerta y seguí el tono hasta la computadora. Pasá el cursor sobre los objetos o usá **Tab** para descubrirlos y **Enter** para activarlos.
+
+En NEXUS OS, abrí aplicaciones desde los iconos o el botón **Inicio**. Arrastrá una barra de título o enfócala y usá las flechas para mover la ventana. Las aplicaciones minimizadas se recuperan desde la barra de tareas. En **Configuración** podés ajustar volumen, silencio y efectos visuales. Las preferencias se guardan en el navegador.
 
 Los fragmentos son de C. La terminal simula los resultados y compara las respuestas con soluciones predefinidas. Las defensas empiezan a contar cuando pulsás **Iniciar defensa**.
 

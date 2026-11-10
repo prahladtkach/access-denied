@@ -37,3 +37,18 @@ test('la bitácora eliminada impide sellar incluso con el sello correcto', () =>
   assert.equal(reducer(deleted, { type:'finish', ending:'THE TRUTH' }), deleted);
 });
 
+test('la introducción precede al primer reto y los guardados anteriores pueden continuarlo', () => {
+  const state = reducer(newGame(), { type:'inspect', id:'note' });
+  const solve = { type:'challenge', challenge:'main', input:'151' };
+  assert.equal(reducer(state, solve), state);
+  const { opening, ...legacyProgress } = state.progress;
+  const legacy = loadGame({ getItem: () => JSON.stringify({ ...state, progress: legacyProgress }) });
+  assert.equal(reducer(legacy, solve).progress.stage, 1);
+  let session = state;
+  for (const step of ['locked', 'contact', 'done']) {
+    session = reducer(session, { type:'advanceOpening' });
+    assert.equal(session.progress.opening, step);
+  }
+  assert.equal(reducer(session, solve).progress.stage, 1);
+});
+

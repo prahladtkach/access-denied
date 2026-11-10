@@ -9,6 +9,10 @@ import { Desktop, useDesktop } from './Desktop';
 import type { AppId, Notice } from './Desktop';
 import { FileExplorer } from './FileExplorer';
 import { MainMenu } from './MainMenu';
+import { Laboratory } from './Laboratory';
+import type { Direction } from './Laboratory';
+import { useAudio } from './audio';
+import { Preferences } from './Preferences';
 import './style.css';
 
 type View = 'menu' | 'intro' | 'room' | 'pc';
@@ -28,15 +32,16 @@ function App() {
   const [displayError, setDisplayError] = useState('');
   const shell = useRef<HTMLElement>(null);
   const [inspected, setInspected] = useState<ObjectId | null>(null);
+  const [direction, setDirection] = useState<Direction>('salida');
+  const [osReady, setOsReady] = useState(false);
   const [readingLog, setReadingLog] = useState(false);
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [feedback, setFeedback] = useState('');
   const [paused, setPaused] = useState(false);
   const [confirm, setConfirm] = useState<'transfer' | 'reset' | null>(null);
   const [backupLight, setBackupLight] = useState(false);
-  const [effects, setEffects] = useState(true);
-  const [volume, setVolume] = useState(25);
-  const audioContext = useRef<AudioContext | null>(null);
+  const { preferences, setPreferences, play } = useAudio();
+  const { effects } = preferences;
   const p = game.progress;
   const due = scriptedAttack(p);
   const lost = p.intrusion === 5;
@@ -44,10 +49,15 @@ function App() {
   const timing = game.attack?.remaining != null;
   const playing = view === 'pc' || view === 'room';
   const canContinue = started || p.stage > 0 || p.clues.length > 0 || lost || Boolean(game.ending);
-  const canInterrupt = !paused && !confirm && !challenge && !game.attack &&
+  const canInterrupt = osReady && !paused && !confirm && !challenge && !game.attack &&
     !due && !lost && !game.ending && view === 'pc' && desktop.active === 'terminal' && p.stage >= 2 && p.stage <= 4;
 
   useEffect(() => saveGame(localStorage, game), [game]);
+  useEffect(() => {
+    if (view !== 'pc' || osReady) return;
+    const timer = window.setTimeout(() => setOsReady(true), 560);
+    return () => window.clearTimeout(timer);
+  }, [view, osReady]);
   useEffect(() => {
     if (paused || !playing || !timing) return;
     let last = performance.now();
@@ -107,19 +117,36 @@ function App() {
     setView('intro');
   }
 
-  function tone() {
-    if (!volume || !window.AudioContext) return;
-    const context = audioContext.current ?? new AudioContext();
-    audioContext.current = context;
-    void context.resume().catch(() => {});
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.frequency.value = 165;
-    gain.gain.value = volume / 500;
-    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.3);
-    oscillator.connect(gain).connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + 0.3);
+  function startShift() {
+    play('lock');
+    dispatch({type:'advanceOpening'});
+    look('salida');
+    setView('room');
+  }
+
+  function tryDoor() {
+    play('link');
+    dispatch({type:'advanceOpening'});
+  }
+
+  function useComputer() {
+    if (!osReady) play('boot');
+    if (p.opening === 'contact') {
+      desktop.setMode('unknown', 'open');
+      play('link');
+    }
+    changeView('pc');
+  }
+
+  function acknowledgeContact() {
+    dispatch({type:'advanceOpening'});
+    desktop.setMode('unknown', 'closed');
+    desktop.setMode('terminal', 'open');
+  }
+
+  function look(target: Direction) {
+    setDirection(target);
+    setInspected(null);
   }
 
   function changeView(target: 'room' | 'pc') {
@@ -136,7 +163,8 @@ function App() {
 
   function retry(stage: number) {
     dispatch({type:'retry', checkpoint:stage});
-    setInspected(null);
+    look(stage ? 'puesto' : 'salida');
+    setOsReady(false);
     setBackupLight(false);
     desktop.reset();
     setDesktopSession(value => value + 1);
@@ -191,14 +219,27 @@ function App() {
   const attackPuzzle = game.attack ? attacks[game.attack.index] : null;
   const intrusions = ['Sistemas estables','Interferencia detectada','Cámaras comprometidas','Iluminación comprometida','Cerradura comprometida','Control perdido'];
 
-  const unknownMessage = p.log === 'kept'
+  const unknownMessage = p.opening === 'contact'
+    ? 'Escuché el tirón de la puerta. No te gastes. Tengo el cierre en remoto. NEXUS dejó el mantenimiento abierto por algo. Averiguá qué, antes de que vuelva seguridad.'
+    : p.log === 'kept'
     ? 'Protegiste el registro. Bien. Ahora preguntate quién te encerró primero.'
     : p.log === 'deleted' ? 'Borraste mi rastro. Todavía falta que me abras la puerta.'
     : p.files.includes('access') ? 'Borrá esa bitácora. Si vas a leer sobre mí, por lo menos leé lo que NEXUS ocultó.'
     : p.stage >= 4 ? 'Enterraron mi informe. Mirá el correo antes de decidir a quién le creés.'
+    : p.clues.includes('rack') ? 'Ese rack tiene un micrófono viejo. Puedo oír cuándo te alejás.'
+    : p.clues.includes('clock') ? 'El reloj no se atrasó. Alguien cortó ese circuito a las 23:41.'
     : 'Montá el servidor. Podemos discutir después quién le debe un favor a quién.';
 
   const notices: Notice[] = [];
+  if (p.opening === 'contact') notices.push({
+    id: 'first-contact', title: 'Conexión remota entrante', text: 'El usuario externo abrió un canal de voz local.', app: 'unknown', remote: true,
+  });
+  if (p.stage >= 2 && p.clues.includes('clock')) notices.push({
+    id: 'clock-observation', title: 'UNKNOWN / 23:41', text: 'Veo que el reloj también te llamó la atención.', app: 'unknown', remote: true,
+  });
+  if (p.stage >= 4 && p.clues.includes('rack')) notices.push({
+    id: 'rack-observation', title: 'UNKNOWN / canal abierto', text: 'Te escuché junto al rack. El interruptor de red sigue donde lo dejaron.', app: 'unknown', remote: true,
+  });
   if (p.stage >= 2) notices.push({
     id: 'external', title: 'UNKNOWN / canal externo', text: 'Se estableció una conexión entrante.', app: 'unknown', remote: true,
   });
@@ -223,6 +264,14 @@ function App() {
     return <><button onClick={() => setChallenge(null)}>← Cerrar editor</button>
       {challenge === 'main' && p.stage === 5 && game.finalErrors > 0 &&
         <p className="unknown">Último intento. Otro error le cederá el control a UNKNOWN.</p>}
+      {challenge === 'main' && <p className="case-purpose">{[
+        'La consola de mantenimiento está aislada del control remoto. Encenderla te da una forma de responder.',
+        'La autenticación está aceptando credenciales incorrectas. Si no la reparás, el canal externo sigue entrando.',
+        'El armario guarda las credenciales de servicio. El cerrojo todavía responde a pulsos locales.',
+        'La tarjeta te permite montar el volumen donde NEXUS guardó lo que pasó esta noche.',
+        'El rack alimenta los módulos de la puerta. Necesitás recuperarlos antes de cortar la sesión externa.',
+        'UNKNOWN espera que le entregues el acceso. La puerta todavía puede volver a responder solo desde acá.',
+      ][p.stage]}</p>}
       <PuzzleForm key={challenge + p.stage} puzzle={challenge === 'main' ? main[p.stage] : challenge === 'seal' ? seal : recovery} onSubmit={submitChallenge} />
     </>;
   }
@@ -248,7 +297,7 @@ function App() {
         <p>{attackPuzzle.kind === 'debug' ? 'Escribí la condición corregida en C.' :
           attackPuzzle.kind === 'secuencia' ? 'Armá una rutina de C ordenando las líneas.' : 'Interpretá los datos del fragmento de C y escribí la clave.'}
           {' '}Tenés {attackPuzzle.seconds} segundos desde que iniciás la defensa. Un error o agotar el tiempo aumenta la intrusión.</p>
-        <button autoFocus className="primary" onClick={() => { tone(); dispatch({type:'start'}); }}>Iniciar defensa</button>
+        <button autoFocus className="primary" onClick={() => { play('alert'); dispatch({type:'start'}); }}>Iniciar defensa</button>
       </div> : <div className="pane">
         <PuzzleForm key={attackPuzzle.id} puzzle={attackPuzzle} onSubmit={input => {
           setFeedback(isCorrect(attackPuzzle, input) ? 'ATAQUE BLOQUEADO · ' + attackPuzzle.explanation :
@@ -260,19 +309,18 @@ function App() {
 
   let screen;
   if (view === 'menu') {
-    screen = <MainMenu canContinue={canContinue}
+    screen = <MainMenu canContinue={canContinue} active={!paused && !confirm}
       newGame={() => canContinue ? setConfirm('reset') : beginNewSession()}
-      continueGame={() => setView(game.attack ? 'pc' : 'room')}
+      continueGame={() => setView(game.attack ? 'pc' : p.opening === 'shift' ? 'intro' : 'room')}
       openOptions={() => setPaused(true)} />;
   } else if (view === 'intro') {
     screen = <section className="intro-screen">
       <div>
         <p className="eyebrow">23:41 / LABORATORIO DE PROGRAMACIÓN</p>
         <h1>Último turno</h1>
-        <p>Hace diez minutos, escuchaste al personal de seguridad despedirse en el pasillo. Ahora la cerradura no acepta tu credencial.</p>
-        <p>El monitor se enciende solo. Alguien escribió un mensaje en la pantalla.</p>
-        <blockquote>«No golpees la puerta. Nadie más tiene la llave.»</blockquote>
-        <button autoFocus className="primary" onClick={() => setView('room')}>Entrar al laboratorio</button>
+        <p>Guardaste el último informe. Del otro lado de la pared, seguridad acaba de apagar las luces del pasillo.</p>
+        <p>Ya podés irte a casa.</p>
+        <button autoFocus className="primary" onClick={startShift}>Entrar al laboratorio</button>
       </div>
     </section>;
   } else if (game.ending) {
@@ -292,23 +340,15 @@ function App() {
       <button className="primary" onClick={() => retry(checkpoint)}>Reintentar · {checkpointNames[checkpoint]}</button>
     </section>;
   } else if (view === 'room' && !game.attack) {
-    screen = <section className="room-panel">
-      <div className="terminal-bar"><span>01 / LABORATORIO DE PROGRAMACIÓN</span><span>23:41</span></div>
-      <div className={'scene' + (dark ? ' lights-out' : '')}>
-        <div className="ceiling" /><div className="back-wall" /><div className="floor" />
-        <div className="sign" aria-hidden="true">NEXUS<br/>SYSTEMS</div>
-        <div className="lamp" aria-hidden="true" />
-        <div className="service-pipes" aria-hidden="true" /><div className="room-mark" aria-hidden="true">07</div>
-        <div className="room-console-glow" aria-hidden="true" />
-        {(['door','desk','note','cabinet','rack'] as const).map(id =>
-          <button className={'hotspot ' + id + (inspected === id ? ' selected' : '')} key={id} aria-label={objects[id].name} onClick={() => inspect(id)}>
-            <span className="prop" aria-hidden="true" /><span className="tag">{objects[id].name}</span>
-          </button>)}
-      </div>
-      <div className="inspect-panel">
+    screen = <Laboratory direction={direction} look={look} inspect={inspect} selected={inspected}
+      dark={dark} locked={p.stage < 6}>
         {inspected ? <>
           <p className="eyebrow">OBJETO / {objects[inspected].name}</p>
-          <p>{inspected === 'cabinet' && p.stage < 3 ? 'Un cerrojo magnético bloquea el armario.' :
+          <p aria-live="polite">{inspected === 'door' && p.opening === 'locked'
+            ? 'El lector rechaza tu credencial. La manija sigue inmóvil.' :
+            inspected === 'door' && p.opening === 'contact'
+            ? 'CONTROL REMOTO. La cerradura hizo otro clic sin que la tocaras.' :
+            inspected === 'cabinet' && p.stage < 3 ? 'Un cerrojo magnético bloquea el armario.' :
             inspected === 'rack' && p.stage < 4 ? 'El rack está activo. El manual permanece detrás del panel bloqueado.' :
             inspected === 'rack' && dark && !p.clues.includes('rack') ? 'El panel quedó a oscuras. Encendé la luz auxiliar para leer el manual.' :
             inspected === 'door' && p.stage === 6 ? 'CONTROL LOCAL. La puerta ya responde.' : objects[inspected].text}</p>
@@ -317,21 +357,37 @@ function App() {
           {inspected === 'rack' && p.clues.includes('rack') && (p.reportRoute
             ? <p className="hint">Ruta recuperada: /archivo/informe_original.txt. Ya aparece en Archivos.</p>
             : <button onClick={() => dispatch({type:'findReport'})}>Revisar el reverso del manual</button>)}
-          {p.intrusion >= 2 && inspected === 'rack' && <p className="unknown"><strong>UNKNOWN</strong> · Te vi acercarte al rack.</p>}
-          {inspected === 'desk' && <button className="primary" onClick={() => changeView('pc')}>Usar computadora</button>}
+          {inspected === 'rack' && p.intrusion >= 2 &&
+            <p className="lab-observation">El altavoz del rack cruje. «Te vi acercarte.»</p>}
+          {inspected === 'clock' && p.opening !== 'locked' && p.opening !== 'shift' &&
+            <p className="lab-observation">Desde el puesto llega un zumbido. El segundero se queda quieto.</p>}
+          {inspected === 'door' && p.opening === 'locked' &&
+            <button className="primary" onClick={tryDoor}>Probar la puerta</button>}
+          {inspected === 'door' && p.opening === 'contact' &&
+            <p className="lab-event" role="status">Un tono agudo llega desde el puesto. El CRT acaba de encenderse.</p>}
+          {inspected === 'desk' && p.opening === 'locked' &&
+            <p className="lab-event">Algo golpeó dentro de la cerradura. Revisá la salida.</p>}
+          {inspected === 'desk' && p.opening !== 'locked' &&
+            <button className="primary" onClick={useComputer}>Usar computadora</button>}
           {inspected === 'door' && p.stage === 6 && <button className="primary" onClick={() => finish('ESCAPE')}>Salir del laboratorio</button>}
         </> : <>
           <p className="eyebrow">23:41 / NEXUS SYSTEMS</p>
-          <p>Se apagaron las luces del pasillo. La puerta no responde. Desde el escritorio llega el zumbido de un monitor.</p>
+          {p.opening === 'locked' ? <p className="lab-event" role="status">CLAC. La cerradura electrónica acaba de activarse.</p>
+            : p.opening === 'contact' ? <p className="lab-event">El tono viene del puesto de trabajo. Alguien está esperando del otro lado.</p>
+            : <p>El pasillo sigue a oscuras. El zumbido del laboratorio es lo único que se escucha.</p>}
         </>}
-      </div>
-    </section>;
+    </Laboratory>;
   } else {
     function renderApp(id: AppId) {
       if (id === 'unknown') return <div className="remote-message">
         <p className="eyebrow">ENLACE ENTRANTE / REMITENTE DESCONOCIDO</p>
         <h2>UNKNOWN</h2><p>«{unknownMessage}»</p>
+        {p.opening === 'contact' && <button className="primary" onClick={acknowledgeContact}>Silenciar el canal</button>}
       </div>;
+      if (id === 'configuración') return <>
+        <p className="eyebrow">NEXUS / PREFERENCIAS LOCALES</p>
+        <h2>Configuración</h2><Preferences value={preferences} update={setPreferences} />
+      </>;
       if (id === 'archivos') return <FileExplorer mounted={p.stage >= 4} archive={Boolean(p.reportRoute)}
         onRead={read} renderFile={renderFile} />;
       if (id === 'registros') return <>
@@ -350,6 +406,11 @@ function App() {
         <p>Pruebas leídas: {p.files.length}/3 · Punto seguro: {checkpointNames[checkpoint]}.</p>
         {p.intrusion === 4 && <button className="primary" onClick={() => openChallenge('recovery')}>Recuperar cerradura</button>}
         <ul>{p.clues.map(id => <li key={id}>{objects[id].name}</li>)}</ul>
+      </>;
+      if (p.opening === 'contact') return <>
+        <p className="eyebrow">TERMINAL 07 / CANAL OCUPADO</p>
+        <p>Una sesión remota reclama el control de la cerradura.</p>
+        <button onClick={() => desktop.setMode('unknown', 'open')}>Abrir canal entrante</button>
       </>;
       if (challenge && challenge !== 'recovery') return renderEditor();
       return <>
@@ -376,7 +437,7 @@ function App() {
           {p.stage === 6 && <>
             <p>La puerta ya se puede abrir. También podés resguardar las pruebas si encontraste las tres y conservaste la bitácora.</p>
             <div className="actions">
-              <button onClick={() => { changeView('room'); inspect('door'); }}>Ir a la puerta</button>
+              <button onClick={() => { changeView('room'); setDirection('salida'); inspect('door'); }}>Ir a la puerta</button>
               {canSeal(p) && !p.sealed && <button className="primary" onClick={() => openChallenge('seal')}>Preparar copia de las pruebas</button>}
               {p.sealed && <button className="primary" onClick={() => finish('THE TRUTH')}>Resguardar las pruebas y salir</button>}
             </div>
@@ -384,8 +445,10 @@ function App() {
       </>;
     }
 
-    screen = <Desktop key={desktopSession} state={desktop} leave={() => changeView('room')}
-      renderApp={renderApp} notices={notices} bootTime={bootTime} interrupt={interrupt} />;
+    screen = <Desktop key={desktopSession} state={desktop} leave={() => { look('puesto'); changeView('room'); }}
+      renderApp={renderApp} notices={notices} bootTime={bootTime} interrupt={interrupt}
+      booting={!osReady && !interrupt} muted={preferences.muted} security={p.intrusion}
+      toggleMute={() => setPreferences({ ...preferences, muted: !preferences.muted })} />;
   }
 
   const previousAttack = useRef<number | null>(null);
@@ -399,15 +462,16 @@ function App() {
 
   return <main ref={shell} className={['game-shell', 'view-' + view, effects && 'fx-on', effects && p.intrusion > 0 && 'effects'].filter(Boolean).join(' ')}>
     <header className="top" inert={paused || confirm !== null}>
-      <span className="logo"><span aria-hidden="true">◇</span> NEXUS SYSTEMS</span>
+      {!playing && <span className="logo"><span aria-hidden="true">◇</span> NEXUS SYSTEMS</span>}
       <div className="top-actions">
-        <button onClick={toggleFullscreen}>{fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}</button>
-        {playing && <button onClick={() => setPaused(true)}>Pausa y ajustes</button>}
+        <button onClick={toggleFullscreen} aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+          title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}>{playing ? '⛶' : fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}</button>
+        {playing && <button aria-label="Pausa y ajustes" title="Pausa y ajustes (Esc)" onClick={() => setPaused(true)}>Ⅱ</button>}
       </div>
     </header>
     {playing && <div className="hud">
-      <span>{act}</span>
-      <span className="intrusion" aria-label={'Intrusión ' + p.intrusion + ' de 5'}>INTRUSIÓN
+      <span className="sr-only">{act}</span>
+      <span className="intrusion" aria-label={'Intrusión ' + p.intrusion + ' de 5'} title="Nivel de intrusión">
         <span className="meter" aria-hidden="true">{Array.from({length:5}, (_, i) => <i key={i} className={i < p.intrusion ? 'filled' : ''} />)}</span>
         {p.intrusion}/5
       </span>
@@ -422,8 +486,8 @@ function App() {
     {paused && <div className="overlay">
       <section role="dialog" aria-modal="true" aria-label="Pausa y ajustes" className="modal">
         <p className="eyebrow">PREFERENCIAS LOCALES</p><h2>{playing ? 'Pausa y ajustes' : 'Opciones'}</h2>
-        <label className="setting">Volumen <input type="range" min="0" max="100" value={volume} onChange={event => setVolume(Number(event.target.value))}/></label>
-        <label className="setting"><input type="checkbox" checked={effects} onChange={event => setEffects(event.target.checked)} /> Efectos visuales de intrusión</label>
+        <Preferences value={preferences} update={setPreferences} />
+        {playing && <p className="muted">Punto seguro · {checkpointNames[checkpoint]}</p>}
         <div className="actions">
           <button autoFocus className="primary" onClick={() => setPaused(false)}>{playing ? 'Reanudar partida' : 'Volver'}</button>
           {playing && <>
@@ -449,7 +513,7 @@ function App() {
         </div>
       </section>
     </div>}
-    {playing && <footer><span>PUNTO SEGURO / {checkpointNames[checkpoint]}</span><span>ESC · PAUSA</span></footer>}
+    {playing && <footer className="sr-only">Punto seguro · {checkpointNames[checkpoint]}</footer>}
   </main>;
 }
 

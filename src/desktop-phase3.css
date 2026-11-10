@@ -1,0 +1,129 @@
+.nexus-os .os-window {
+  transition: opacity 145ms ease, transform 145ms ease, visibility 145ms;
+  transform-origin: 45% 95%;
+}
+.nexus-os .os-window[data-mode="closed"], .nexus-os .os-window[data-mode="minimized"] {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.nexus-os .os-window[data-mode="closed"] { transform: scale(.975); }
+.nexus-os .os-window[data-mode="minimized"] { transform: translateY(24px) scale(.94); }
+.nexus-os .os-remote { --window-height: min(252px, calc(100% - 16px)); }
+.nexus-os .os-window[data-mode="open"] { opacity: 1; transform: none; }
+.fx-on .os-window[data-mode="open"]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: #9beacb;
+  transform-origin: left;
+  pointer-events: none;
+  animation: os-process 210ms ease-out both;
+}
+@keyframes os-process {
+  from { transform: scaleX(.08); opacity: .8; }
+  to { transform: scaleX(1); opacity: 0; }
+}
+.nexus-os button:active:not(:disabled) { filter: brightness(1.24); }
+.fx-on .nexus-os .os-toast { animation: os-toast-arrival 230ms ease-out; }
+@keyframes os-toast-arrival { from { transform: translateY(7px); opacity: 0; } }
+
+.nexus-os .os-taskbar {
+  min-height: 48px;
+  padding: 4px 8px;
+  gap: 6px;
+  border-top: 1px solid #578377;
+  background: linear-gradient(#1a2a30, #0e181e 78%);
+}
+.nexus-os .os-taskbar .os-start {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  color: #cbf6e0;
+  background: #203b38;
+  border-color: #568479;
+  font-weight: bold;
+}
+.os-start span { color: #95e8c0; font-size: 1.05rem; }
+.nexus-os .os-start[aria-expanded="true"] { border-color: #9aeac6; background: #35534b; }
+.nexus-os .os-running button { position: relative; min-height: 32px; padding-bottom: .5em; }
+.nexus-os .os-running button::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 18%;
+  right: 18%;
+  height: 2px;
+  background: #5d9186;
+}
+.nexus-os .os-running button[data-mode="minimized"] { color: #a1b7b3; background: #121c22; border-style: dashed; }
+.nexus-os .os-running button[data-mode="minimized"]::after { opacity: .32; }
+.nexus-os .os-running button[aria-pressed="true"]::after { background: #b9f6d9; }
+.os-tray { display: flex; align-items: center; gap: 2px; padding-left: 4px; border-left: 1px solid #405851; }
+.nexus-os .os-taskbar .os-tray button {
+  position: relative;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 2px;
+  border-color: transparent;
+  background: transparent;
+  color: #bcddd1;
+  font-size: .92rem;
+}
+.nexus-os .os-tray button:hover:not(:disabled) { border-color: #5d9186; background: #253f3b; }
+.os-tray sup { position: absolute; top: -1px; right: 0; color: #152525; background: #aad7c5; padding-inline: 2px; font-size: .53rem; }
+.nexus-os .os-taskbar .os-tray button.os-incoming, .nexus-os .os-taskbar .os-tray button.os-warning { color: #ffc09b; }
+.os-incoming sup { background: #f0a88d; }
+.nexus-os .os-clock { min-width: 66px; display: grid; justify-items: end; padding: 0 4px; }
+.os-clock small { color: #a8bbb6; font-size: .62rem; }
+.os-clock b { font-size: .77rem; letter-spacing: .04em; }
+.nexus-os .os-toast, .nexus-os .os-notice-center { bottom: 8px; }
+.os-popup {
+  position: absolute;
+  z-index: 10;
+  width: min(200px, calc(100% - 10px));
+  display: grid;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid #72968a;
+  background: #13242a;
+  box-shadow: 4px 6px #020809b0;
+}
+.os-popup header, .os-popup > span { display: grid; gap: 4px; padding: 8px; background: #223c3a; color: #d9efe4; }
+.os-popup small, .os-popup > span { font-size: .64rem; color: #a1bcb2; }
+.os-popup button { display: flex; gap: 8px; align-items: center; text-align: left; padding: 8px; background: transparent; border-color: transparent; font-size: .79rem; }
+.os-popup button span { width: 22px; }
+.os-start-menu { left: 8px; bottom: 49px; }
+.os-boot {
+  position: absolute;
+  inset: 0;
+  z-index: 13;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: .65rem;
+  background: #0a1115;
+  color: #b3f2d5;
+}
+.os-boot > span { font-size: 2.75rem; line-height: 1; }
+.os-boot small { color: #9cb8ad; font-size: .69rem; letter-spacing: .1em; }
+.os-boot i { width: 146px; height: 3px; background: #77b7a1; transform-origin: left; }
+.fx-on .os-boot i { animation: os-boot-sweep .55s linear both; }
+@keyframes os-boot-sweep { from { transform: scaleX(.12); } to { transform: scaleX(1); } }
+.game-shell:not(.fx-on) .os-window { transition: none; }
+@media (max-width: 630px) {
+  .nexus-os .os-taskbar { gap: 3px; padding-inline: 4px; }
+  .nexus-os .os-taskbar .os-exit { padding-inline: .3em; font-size: .66rem; }
+  .nexus-os .os-taskbar .os-start { gap: 3px; padding-inline: 4px; }
+  .os-tray { padding-left: 2px; }
+  .nexus-os .os-clock { min-width: 45px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nexus-os .os-window { transition: none; }
+  .fx-on .nexus-os .os-toast, .fx-on .os-boot i { animation: none; }
+  .fx-on .os-window[data-mode="open"]::after { content: none; }
+}
