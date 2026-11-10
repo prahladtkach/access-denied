@@ -26,7 +26,7 @@ export function PuzzleForm({ puzzle, onSubmit }: { puzzle: Puzzle; onSubmit: (an
     {lines ? <>
       <p className="muted">Elegí cada línea para agregarla. Podés moverla o quitarla después.</p>
       <div className="line-bank">
-        {lines.map((line, index) => <button key={index} type="button" disabled={order.includes(index)}
+        {lines.map((line, index) => <button key={index} type="button" autoFocus={index === 0} disabled={order.includes(index)}
           onClick={() => setOrder([...order, index])}>＋ <code>{line}</code></button>)}
       </div>
       <ol className="line-order" aria-label="Secuencia armada">
@@ -42,7 +42,7 @@ export function PuzzleForm({ puzzle, onSubmit }: { puzzle: Puzzle; onSubmit: (an
       {puzzle.id === 'S3' && <code className="fixed-line">{'}'} {/* cierre fijo */}</code>}
     </> : <label className="answer">
       {puzzle.kind === 'debug' ? 'Condición en C' : 'Respuesta'}
-      <input autoComplete="off" spellCheck={false} value={answer} onChange={event => setAnswer(event.target.value)} />
+      <input autoFocus autoComplete="off" spellCheck={false} value={answer} onChange={event => setAnswer(event.target.value)} />
     </label>}
     <div className="actions">
       <button className="primary" disabled={lines ? order.length !== lines.length : !answer.trim()}>Validar</button>

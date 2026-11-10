@@ -29,7 +29,11 @@ async function warn(page) {
 
 async function terminalRecovered(page) {
   await page.goto('/');
+  await click(page, 'Acercarse al monitor');
+  await click(page, 'Nueva partida');
+  await click(page, 'Entrar al laboratorio');
   await inspect(page, 'Nota del escritorio');
+  await expect(page.getByText(/ingresá el valor que imprima/)).toBeVisible();
   await useComputer(page);
   await click(page, 'Abrir reto · P1');
   await answer(page, '150');
@@ -61,11 +65,16 @@ async function finalCheckpoint(page, evidence = 'skip') {
   await useComputer(page);
   if (evidence !== 'skip') {
     await click(page, 'Archivos');
+    await click(page, 'Correo interno');
     await click(page, 'correo_interno.txt');
     await expect(page.getByText(/Suspendan la auditoría/)).toBeVisible();
+    await click(page, 'Archivo técnico');
     await click(page, 'informe_original.txt');
+    await expect(page.getByText(/Entregué el informe/)).toBeVisible();
     await click(page, 'Registros');
     await click(page, 'acceso_nocturno.log');
+    await expect(page.getByRole('region', { name: 'Ventana de UNKNOWN' })).toBeVisible();
+    await click(page, 'Cerrar UNKNOWN');
     await click(page, evidence === 'keep' ? 'Conservar registro' : 'Borrar registro');
     await terminal(page);
   }
@@ -99,6 +108,8 @@ test('ESCAPE: todos los retos principales y salida por la puerta física', async
 test('THE TRUTH: persiste la evidencia, se sella y se vuelve al checkpoint', async ({ page }) => {
   await finalCheckpoint(page, 'keep');
   await page.reload();
+  await click(page, 'Acercarse al monitor');
+  await click(page, 'Continuar partida');
   await useComputer(page);
   await lastDefense(page);
   await localControl(page);
@@ -128,6 +139,7 @@ test('UNKNOWN WINS: transferencia confirmada y segundo fallo del protocolo', asy
   await expect(page.getByRole('heading', { name: 'UNKNOWN WINS', exact: true })).toBeVisible();
   await click(page, 'Nueva partida');
   await click(page, 'Reiniciar partida');
+  await click(page, 'Entrar al laboratorio');
   await expect(page.locator('footer')).toContainText('Inicio');
   await expect(button(page, 'Nota del escritorio')).toBeVisible();
 });
@@ -156,5 +168,80 @@ test('el temporizador respeta la pausa y una intrusión 5/5 permite restaurar', 
   await expect(button(page, 'Abrir alerta de intrusión')).toBeVisible();
 });
 
+test('NEXUS OS: ventanas simultáneas, movimiento, cierre y borrador con mouse y teclado', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 640 });
+  await page.goto('/');
+  await button(page, 'Acercarse al monitor').press('Enter');
+  await expect(button(page, 'Continuar partida')).toBeDisabled();
+  await button(page, 'Opciones').press('Enter');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await button(page, 'Nueva partida').press('Enter');
+  await page.keyboard.press('Enter');
+  await expect(button(page, 'Computadora')).toBeVisible();
+  await expect(page.locator('.desk .tag')).toHaveCSS('opacity', '0');
+  await button(page, 'Computadora').focus();
+  await expect(page.locator('.desk .tag')).toHaveCSS('opacity', '1');
+  await button(page, 'Puerta electrónica').press('Enter');
+  await expect(page.getByText(/CONTROL REMOTO/)).toBeVisible();
+  await button(page, 'Nota del escritorio').press('Enter');
+  await button(page, 'Computadora').press('Enter');
+  await button(page, 'Usar computadora').press('Enter');
+  await button(page, 'Abrir reto · P1').press('Enter');
+  await page.getByRole('textbox').fill('151');
+  await button(page, 'Minimizar Terminal').press('Enter');
+  const terminalWindow = page.getByRole('region', { name: 'Ventana de Terminal' });
+  await expect(terminalWindow).toBeHidden();
+  await button(page, 'Alternar Terminal').press('Enter');
+  await expect(page.getByRole('textbox')).toHaveValue('151');
 
+  const title = button(page, 'Mover Terminal con las flechas');
+  const position = await terminalWindow.boundingBox();
+  await title.press('ArrowRight');
+  await expect.poll(async () => (await terminalWindow.boundingBox()).x).toBeGreaterThan(position.x);
+  const handle = await title.boundingBox();
+  await page.mouse.move(handle.x + 65, handle.y + 12);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + 18, handle.y + 12, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(async () => (await terminalWindow.boundingBox()).x).toBeLessThan(position.x);
+
+  await click(page, 'Archivos');
+  await expect(page.getByRole('region', { name: 'Ventana de Archivos' })).toBeVisible();
+  await expect(terminalWindow).toBeVisible();
+  await click(page, 'Cerrar Archivos');
+  await button(page, 'Cerrar Terminal').press('Enter');
+  await expect(terminalWindow).toBeHidden();
+  await expect(button(page, 'Alternar Terminal')).toHaveCount(0);
+  await button(page, 'Terminal').press('Enter');
+  await expect(page.getByRole('textbox')).toHaveValue('151');
+  await page.getByRole('textbox').press('Enter');
+  await expect(button(page, 'Abrir reto · P2')).toBeVisible();
+  await expect(page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).resolves.toBe(true);
+});
+
+test('pantalla completa desde el menú y regreso a la ventana', async ({ page }) => {
+  await page.goto('/');
+  await click(page, 'Pantalla completa');
+  await expect(button(page, 'Salir de pantalla completa')).toBeVisible();
+  await click(page, 'Salir de pantalla completa');
+  await expect(button(page, 'Pantalla completa')).toBeVisible();
+});
+
+test('el CRT abre el menú con teclado y permite regresar a la vista general', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const monitor = button(page, 'Acercarse al monitor');
+  await expect(monitor).toBeVisible();
+  await expect(button(page, 'Nueva partida')).toHaveCount(0);
+  await monitor.press('Enter');
+  await expect(button(page, 'Nueva partida')).toBeFocused();
+  await click(page, 'Opciones');
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await click(page, 'Volver');
+  await click(page, 'Alejar vista');
+  await expect(monitor).toBeFocused();
+  await expect(button(page, 'Nueva partida')).toHaveCount(0);
+});
 

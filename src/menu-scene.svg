@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 800" fill="none">
+  <defs>
+    <linearGradient id="wall" x2="0" y2="1">
+      <stop stop-color="#080c10"/><stop offset="1" stop-color="#131d1d"/>
+    </linearGradient>
+    <linearGradient id="wood" x2=".1" y2="1">
+      <stop stop-color="#262926"/><stop offset=".44" stop-color="#1a211f"/><stop offset="1" stop-color="#080d10"/>
+    </linearGradient>
+    <linearGradient id="shell" x1="0" y1="1" x2=".9" y2=".1">
+      <stop stop-color="#212828"/><stop offset=".37" stop-color="#464c43"/><stop offset=".68" stop-color="#303b36"/><stop offset="1" stop-color="#687567"/>
+    </linearGradient>
+    <linearGradient id="side" x2="1" y2=".24">
+      <stop stop-color="#222d2a"/><stop offset="1" stop-color="#111a1b"/>
+    </linearGradient>
+    <linearGradient id="cup" x1="0" y1=".4" x2="1" y2=".5">
+      <stop stop-color="#111818"/><stop offset=".47" stop-color="#26322d"/><stop offset="1" stop-color="#687567"/>
+    </linearGradient>
+    <radialGradient id="light">
+      <stop stop-color="#81b99c" stop-opacity=".53"/><stop offset=".35" stop-color="#568574" stop-opacity=".29"/>
+      <stop offset="1" stop-color="#427867" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="edges">
+      <stop offset=".34" stop-color="#030609" stop-opacity="0"/><stop offset="1" stop-color="#030609" stop-opacity=".77"/>
+    </radialGradient>
+    <radialGradient id="reflection">
+      <stop stop-color="#000" stop-opacity=".85"/><stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grain" width="130" height="32" patternUnits="userSpaceOnUse">
+      <path d="M0 6h62m24 0h29M9 15h101M0 27h17m18 0h95" stroke="#9baa90" stroke-opacity=".08" stroke-width="2"/>
+    </pattern>
+  </defs>
+
+  <path fill="url(#wall)" d="M0 0h1440v800H0z"/>
+  <path d="M0 463h1440v26H0zM0 245h1440v5H0z" fill="#090f12"/>
+  <path d="M236 0v467m486-467v467m635-467v467" stroke="#1b2525" stroke-width="5"/>
+  <path d="M0 12h1440v16H0z" fill="#0d1316"/>
+  <path d="M110 117h296v274H110z" fill="#080e12" stroke="#192223" stroke-width="7"/>
+  <path d="M123 136h270m-270 25h270m-270 25h270m-270 25h270m-270 25h270m-270 25h270m-270 25h270m-270 25h270m-270 25h270m-270 25h270" stroke="#141c1d" stroke-width="8"/>
+  <path d="M132 463h345l35 58H88z" fill="#131c1b"/>
+  <ellipse cx="942" cy="366" rx="602" ry="346" fill="url(#light)"/>
+
+  <path d="M0 553l182-54h1094l164 54v214H0z" fill="url(#wood)"/>
+  <path d="M0 553l182-54h1094l164 54v167H0z" fill="url(#grain)"/>
+  <path d="M0 553l182-54h1094l164 54M0 685h1440" stroke="#445147" stroke-opacity=".42" stroke-width="3"/>
+  <path d="M0 720h1440v80H0z" fill="#080d10"/>
+  <path d="M0 721h1440v8H0z" fill="#35413a"/>
+  <path d="M0 741h1440" stroke="#0d1517" stroke-width="12"/>
+  <ellipse cx="870" cy="581" rx="553" ry="117" fill="url(#light)"/>
+  <ellipse cx="1044" cy="641" rx="366" ry="53" fill="url(#reflection)"/>
+  <ellipse cx="404" cy="641" rx="148" ry="29" fill="url(#reflection)"/>
+
+  <!-- Coffee: ceramic catches the green light on the side facing the CRT. -->
+  <path d="M437 524h23c36 0 42 55 11 75l-26 13" stroke="#101917" stroke-width="23"/>
+  <path d="M440 524h20c32 0 37 48 9 67l-25 13" stroke="#54645a" stroke-width="11"/>
+  <path d="M321 505l13 108c3 18 28 31 59 31 32 0 58-13 61-31l13-108z" fill="url(#cup)" stroke="#111b19" stroke-width="5"/>
+  <path d="M432 543l-7 66c-2 8-6 12-12 16m33-92-8 58" stroke="#9db1a0" stroke-opacity=".29" stroke-width="4"/>
+  <ellipse cx="394" cy="506" rx="73" ry="24" fill="#657267"/>
+  <ellipse cx="394" cy="506" rx="65" ry="18" fill="#202923"/>
+  <path d="M339 509c12-8 36-12 56-12 24 0 49 6 59 12-11 7-37 13-60 13-26 0-48-6-55-13z" fill="#352e22"/>
+  <path d="M415 502c14 1 27 4 35 7" stroke="#a6b18e" stroke-opacity=".44" stroke-width="2"/>
+  <path d="M346 574l23 5v17l-21-5z" fill="#141c1c" opacity=".76"/>
+
+  <!-- Stand, cables, and the deep side of the CRT. -->
+  <path d="M1130 616c63 10 80-12 120-10s80 21 143 6" stroke="#0b1214" stroke-width="9"/>
+  <path d="M1130 614c63 10 80-12 120-10s80 21 143 6" stroke="#2b3632" stroke-width="2"/>
+  <path d="M953 554h177l27 63-24 20H915l-18-17z" fill="#171f20" stroke="#0a1013" stroke-width="5"/>
+  <path d="M914 617h227l-14 13H927z" fill="#343f38"/>
+  <path d="M972 551h121l11 56H960z" fill="#313c37"/>
+  <path d="M783 99l510-7 74 51 29 348-91 80-28-421z" fill="url(#side)" stroke="#0b1416" stroke-width="7"/>
+  <path d="M817 102l472-5 71 50-84-20H792z" fill="#566357" opacity=".65"/>
+  <path d="M1335 180l32 22m-31-5 33 23m-32-6 33 23m-31-6 33 23m-32-6 33 23m-32-6 34 23" stroke="#080e12" stroke-width="5"/>
+  <path d="M775 111h501l42 35v389l-30 37H755l-36-32V150z" fill="url(#shell)" stroke="#151e1e" stroke-width="9"/>
+  <path d="M776 118h496l33 30v385l-20 25H761l-29-22V157z" stroke="#aab2a0" stroke-opacity=".26" stroke-width="4"/>
+  <path d="M765 148h504l21 21v341l-19 23H759l-21-24V172z" fill="#181f20" stroke="#7d8575" stroke-opacity=".63" stroke-width="3"/>
+  <path d="M789 166h462q22 0 25 24v311q-2 21-24 24H789q-21-1-23-25V190q2-24 23-24z" fill="#091510" stroke="#0c1414" stroke-width="8"/>
+  <path d="M774 550h138m22 0h14m14 0h12" stroke="#919c8b" stroke-opacity=".33" stroke-width="4"/>
+  <path d="M1227 549h16m15 0h16" stroke="#11191a" stroke-width="7"/>
+  <circle cx="1289" cy="550" r="9" fill="#79e0ac" opacity=".17"/>
+  <circle cx="1289" cy="550" r="3" fill="#8bdeb1"/>
+  <path d="M1301 529h8" stroke="#728174" stroke-width="2"/>
+
+  <path d="M0 0h1440v800H0z" fill="url(#edges)"/>
+</svg>

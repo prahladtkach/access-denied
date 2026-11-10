@@ -5,18 +5,30 @@ import { canSeal, checkpointNames, loadGame, mainLock, reducer, saveGame, script
 import type { Ending, FileId, ObjectId } from './game';
 import { endings, files, objects } from './story';
 import { PuzzleForm } from './PuzzleForm';
+import { Desktop, useDesktop } from './Desktop';
+import type { AppId, Notice } from './Desktop';
+import { FileExplorer } from './FileExplorer';
+import { MainMenu } from './MainMenu';
 import './style.css';
 
-type Tab = 'terminal' | 'archivos' | 'registros' | 'diagnóstico';
+type View = 'menu' | 'intro' | 'room' | 'pc';
 type Challenge = 'main' | 'recovery' | 'seal';
-const tabs: Tab[] = ['terminal', 'archivos', 'registros', 'diagnóstico'];
+const sessionKey = 'access-denied:started';
 
 function App() {
   const [game, dispatch] = useReducer(reducer, undefined, () => loadGame(localStorage));
-  const [view, setView] = useState<'room' | 'pc'>('room');
-  const [tab, setTab] = useState<Tab>('terminal');
+  const [view, setView] = useState<View>('menu');
+  const desktop = useDesktop();
+  const [desktopSession, setDesktopSession] = useState(0);
+  const [bootTime, setBootTime] = useState(() => Date.now());
+  const [started, setStarted] = useState(() => {
+    try { return localStorage.getItem(sessionKey) === '1'; } catch { return false; }
+  });
+  const [fullscreen, setFullscreen] = useState(false);
+  const [displayError, setDisplayError] = useState('');
+  const shell = useRef<HTMLElement>(null);
   const [inspected, setInspected] = useState<ObjectId | null>(null);
-  const [file, setFile] = useState<FileId | null>(null);
+  const [readingLog, setReadingLog] = useState(false);
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [feedback, setFeedback] = useState('');
   const [paused, setPaused] = useState(false);
@@ -30,12 +42,14 @@ function App() {
   const lost = p.intrusion === 5;
   const dark = p.intrusion >= 3 && !backupLight;
   const timing = game.attack?.remaining != null;
-  const canInterrupt = !paused && !confirm && !challenge && !file && !game.attack &&
-    !due && !lost && !game.ending && view === 'pc' && tab === 'terminal' && p.stage >= 2 && p.stage <= 4;
+  const playing = view === 'pc' || view === 'room';
+  const canContinue = started || p.stage > 0 || p.clues.length > 0 || lost || Boolean(game.ending);
+  const canInterrupt = !paused && !confirm && !challenge && !game.attack &&
+    !due && !lost && !game.ending && view === 'pc' && desktop.active === 'terminal' && p.stage >= 2 && p.stage <= 4;
 
   useEffect(() => saveGame(localStorage, game), [game]);
   useEffect(() => {
-    if (paused || !timing) return;
+    if (paused || !playing || !timing) return;
     let last = performance.now();
     const timer = window.setInterval(() => {
       const now = performance.now();
@@ -45,7 +59,7 @@ function App() {
       dispatch({type:'tick', at:Date.now(), seconds});
     }, 200);
     return () => window.clearInterval(timer);
-  }, [paused, timing]);
+  }, [paused, playing, timing]);
 
   useEffect(() => {
     if (!canInterrupt) return;
@@ -58,11 +72,40 @@ function App() {
 
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape' && !event.repeat) setPaused(value => !value);
+      if (event.key === 'Escape' && !event.repeat) {
+        if (confirm) setConfirm(null);
+        else if (playing || paused) setPaused(value => !value);
+      }
     }
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
+  }, [playing, paused, confirm]);
+
+  useEffect(() => {
+    const onFullscreen = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', onFullscreen);
+    return () => document.removeEventListener('fullscreenchange', onFullscreen);
   }, []);
+
+  async function toggleFullscreen() {
+    setDisplayError('');
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (shell.current?.requestFullscreen) await shell.current.requestFullscreen();
+      else setDisplayError('El navegador no permite activar pantalla completa desde esta vista.');
+    } catch {
+      setDisplayError('El navegador no pudo cambiar a pantalla completa.');
+    }
+  }
+
+  function beginNewSession() {
+    retry(0);
+    dispatch({type:'reset'});
+    setStarted(true);
+    setBootTime(Date.now());
+    try { localStorage.setItem(sessionKey, '1'); } catch { /* La sesión puede jugarse sin guardado. */ }
+    setView('intro');
+  }
 
   function tone() {
     if (!volume || !window.AudioContext) return;
@@ -82,7 +125,7 @@ function App() {
   function changeView(target: 'room' | 'pc') {
     setView(target);
     setChallenge(null);
-    setFile(null);
+    setReadingLog(false);
     setFeedback('');
   }
 
@@ -95,7 +138,8 @@ function App() {
     dispatch({type:'retry', checkpoint:stage});
     setInspected(null);
     setBackupLight(false);
-    setTab('terminal');
+    desktop.reset();
+    setDesktopSession(value => value + 1);
     setConfirm(null);
     setPaused(false);
     changeView(stage ? 'pc' : 'room');
@@ -121,8 +165,11 @@ function App() {
   }
 
   function read(id: FileId) {
-    setFile(id);
     dispatch({type:'read', id});
+    if (id === 'access') {
+      setReadingLog(true);
+      if (p.log === 'pending' && !p.files.includes('access')) desktop.setMode('unknown', 'open');
+    }
   }
 
   function finish(ending: Ending) {
@@ -144,8 +191,91 @@ function App() {
   const attackPuzzle = game.attack ? attacks[game.attack.index] : null;
   const intrusions = ['Sistemas estables','Interferencia detectada','Cámaras comprometidas','Iluminación comprometida','Cerradura comprometida','Control perdido'];
 
+  const unknownMessage = p.log === 'kept'
+    ? 'Protegiste el registro. Bien. Ahora preguntate quién te encerró primero.'
+    : p.log === 'deleted' ? 'Borraste mi rastro. Todavía falta que me abras la puerta.'
+    : p.files.includes('access') ? 'Borrá esa bitácora. Si vas a leer sobre mí, por lo menos leé lo que NEXUS ocultó.'
+    : p.stage >= 4 ? 'Enterraron mi informe. Mirá el correo antes de decidir a quién le creés.'
+    : 'Montá el servidor. Podemos discutir después quién le debe un favor a quién.';
+
+  const notices: Notice[] = [];
+  if (p.stage >= 2) notices.push({
+    id: 'external', title: 'UNKNOWN / canal externo', text: 'Se estableció una conexión entrante.', app: 'unknown', remote: true,
+  });
+  if (p.stage >= 4) notices.push({
+    id: 'volume', title: 'Volumen conectado', text: 'Ya podés explorar los archivos de NEXUS.', app: 'archivos',
+  });
+  if (p.reportRoute) notices.push({
+    id: 'report', title: 'Ruta recuperada', text: 'El informe está en la carpeta Archivo técnico.', app: 'archivos',
+  });
+  if (p.files.includes('access')) notices.push({
+    id: 'log', title: 'UNKNOWN / mensaje privado', text: unknownMessage, app: 'unknown', remote: true,
+  });
+  if (p.intrusion === 4) notices.push({
+    id: 'lock-' + p.wave, title: 'Cerradura comprometida', text: 'Ejecutá el diagnóstico de recuperación.', app: 'diagnóstico',
+  });
+  if (due) notices.push({
+    id: 'threat-' + p.stage, title: 'Alerta de seguridad', text: 'La terminal detectó una solicitud de intrusión.', app: 'terminal',
+  });
+
+  function renderEditor() {
+    if (!challenge) return null;
+    return <><button onClick={() => setChallenge(null)}>← Cerrar editor</button>
+      {challenge === 'main' && p.stage === 5 && game.finalErrors > 0 &&
+        <p className="unknown">Último intento. Otro error le cederá el control a UNKNOWN.</p>}
+      <PuzzleForm key={challenge + p.stage} puzzle={challenge === 'main' ? main[p.stage] : challenge === 'seal' ? seal : recovery} onSubmit={submitChallenge} />
+    </>;
+  }
+
+  function renderFile(id: FileId) {
+    return <article className="file">
+      <p className="eyebrow">{files[id].source}</p><p>{files[id].text}</p>
+      {id === 'access' && p.log === 'pending' && <>
+        <p className="unknown"><strong>UNKNOWN</strong> · Borrá ese registro. No tiene nada que ver con el informe.</p>
+        <div className="actions">
+          <button onClick={() => dispatch({type:'log', keep:true})}>Conservar registro</button>
+          <button onClick={() => dispatch({type:'log', keep:false})}>Borrar registro</button>
+        </div>
+      </>}
+    </article>;
+  }
+
+  const interrupt = game.attack && attackPuzzle ? <section className="terminal-panel attack">
+      <div className="terminal-bar"><span>⚠ INTRUSIÓN EN CURSO</span><span>{timing ? game.attack.remaining + ' s' : 'EN ESPERA'}</span></div>
+      {!timing ? <div className="pane">
+        <p className="eyebrow">MENSAJE / UNKNOWN</p><h2>{attackPuzzle.title}</h2>
+        <p>«Si querés mantener el control, vas a tener que defenderlo.»</p>
+        <p>{attackPuzzle.kind === 'debug' ? 'Escribí la condición corregida en C.' :
+          attackPuzzle.kind === 'secuencia' ? 'Armá una rutina de C ordenando las líneas.' : 'Interpretá los datos del fragmento de C y escribí la clave.'}
+          {' '}Tenés {attackPuzzle.seconds} segundos desde que iniciás la defensa. Un error o agotar el tiempo aumenta la intrusión.</p>
+        <button autoFocus className="primary" onClick={() => { tone(); dispatch({type:'start'}); }}>Iniciar defensa</button>
+      </div> : <div className="pane">
+        <PuzzleForm key={attackPuzzle.id} puzzle={attackPuzzle} onSubmit={input => {
+          setFeedback(isCorrect(attackPuzzle, input) ? 'ATAQUE BLOQUEADO · ' + attackPuzzle.explanation :
+            'DEFENSA FALLIDA · Intrusión +1. ' + attackPuzzle.explanation);
+          dispatch({type:'defend', input, at:Date.now()});
+        }} />
+      </div>}
+    </section> : undefined;
+
   let screen;
-  if (game.ending) {
+  if (view === 'menu') {
+    screen = <MainMenu canContinue={canContinue}
+      newGame={() => canContinue ? setConfirm('reset') : beginNewSession()}
+      continueGame={() => setView(game.attack ? 'pc' : 'room')}
+      openOptions={() => setPaused(true)} />;
+  } else if (view === 'intro') {
+    screen = <section className="intro-screen">
+      <div>
+        <p className="eyebrow">23:41 / LABORATORIO DE PROGRAMACIÓN</p>
+        <h1>Último turno</h1>
+        <p>Hace diez minutos, escuchaste al personal de seguridad despedirse en el pasillo. Ahora la cerradura no acepta tu credencial.</p>
+        <p>El monitor se enciende solo. Alguien escribió un mensaje en la pantalla.</p>
+        <blockquote>«No golpees la puerta. Nadie más tiene la llave.»</blockquote>
+        <button autoFocus className="primary" onClick={() => setView('room')}>Entrar al laboratorio</button>
+      </div>
+    </section>;
+  } else if (game.ending) {
     const end = endings[game.ending];
     screen = <section className="end-panel">
       <p className="eyebrow">ARCHIVO DE SESIÓN / FIN</p><h1>{game.ending}</h1>
@@ -161,33 +291,17 @@ function App() {
       <p>La red local perdió el control. Podés restaurar el último punto seguro y volver a intentarlo.</p>
       <button className="primary" onClick={() => retry(checkpoint)}>Reintentar · {checkpointNames[checkpoint]}</button>
     </section>;
-  } else if (game.attack && attackPuzzle) {
-    screen = <section className="terminal-panel attack">
-      <div className="terminal-bar"><span>⚠ INTRUSIÓN EN CURSO</span><span>{timing ? game.attack.remaining + ' s' : 'EN ESPERA'}</span></div>
-      {!timing ? <div className="pane">
-        <p className="eyebrow">MENSAJE / UNKNOWN</p><h2>{attackPuzzle.title}</h2>
-        <p>«Si querés mantener el control, vas a tener que defenderlo.»</p>
-        <p>{attackPuzzle.kind === 'debug' ? 'Escribí la condición corregida en C.' :
-          attackPuzzle.kind === 'secuencia' ? 'Armá una rutina de C ordenando las líneas.' : 'Interpretá los datos del fragmento de C y escribí la clave.'}
-          {' '}Tenés {attackPuzzle.seconds} segundos desde que iniciás la defensa. Un error o agotar el tiempo aumenta la intrusión.</p>
-        <button className="primary" onClick={() => { tone(); dispatch({type:'start'}); }}>Iniciar defensa</button>
-      </div> : <div className="pane">
-        <PuzzleForm key={attackPuzzle.id} puzzle={attackPuzzle} onSubmit={input => {
-          setFeedback(isCorrect(attackPuzzle, input) ? 'ATAQUE BLOQUEADO · ' + attackPuzzle.explanation :
-            'DEFENSA FALLIDA · Intrusión +1. ' + attackPuzzle.explanation);
-          dispatch({type:'defend', input, at:Date.now()});
-        }} />
-      </div>}
-    </section>;
-  } else if (view === 'room') {
+  } else if (view === 'room' && !game.attack) {
     screen = <section className="room-panel">
       <div className="terminal-bar"><span>01 / LABORATORIO DE PROGRAMACIÓN</span><span>23:41</span></div>
       <div className={'scene' + (dark ? ' lights-out' : '')}>
         <div className="ceiling" /><div className="back-wall" /><div className="floor" />
         <div className="sign" aria-hidden="true">NEXUS<br/>SYSTEMS</div>
         <div className="lamp" aria-hidden="true" />
+        <div className="service-pipes" aria-hidden="true" /><div className="room-mark" aria-hidden="true">07</div>
+        <div className="room-console-glow" aria-hidden="true" />
         {(['door','desk','note','cabinet','rack'] as const).map(id =>
-          <button className={'hotspot ' + id + (inspected === id ? ' selected' : '')} key={id} onClick={() => inspect(id)}>
+          <button className={'hotspot ' + id + (inspected === id ? ' selected' : '')} key={id} aria-label={objects[id].name} onClick={() => inspect(id)}>
             <span className="prop" aria-hidden="true" /><span className="tag">{objects[id].name}</span>
           </button>)}
       </div>
@@ -213,20 +327,32 @@ function App() {
       </div>
     </section>;
   } else {
-    screen = <section className="terminal-panel">
-      <div className="terminal-bar"><span>NEXUS / SISTEMA DE MANTENIMIENTO</span><button onClick={() => changeView('room')}>← Habitación</button></div>
-      <nav className="tabs" aria-label="Aplicaciones de la computadora">
-        {tabs.map(item => <button key={item} aria-current={tab === item ? 'page' : undefined} onClick={() => {
-          setTab(item); setChallenge(null); setFile(null);
-        }}>{item[0].toUpperCase() + item.slice(1)}</button>)}
-      </nav>
-      <div className="pane">
-        {challenge && <><button onClick={() => setChallenge(null)}>← Cerrar editor</button>
-          {challenge === 'main' && p.stage === 5 && game.finalErrors > 0 &&
-            <p className="unknown">Último intento. Otro error le cederá el control a UNKNOWN.</p>}
-          <PuzzleForm key={challenge + p.stage} puzzle={challenge === 'main' ? main[p.stage] : challenge === 'seal' ? seal : recovery} onSubmit={submitChallenge} />
+    function renderApp(id: AppId) {
+      if (id === 'unknown') return <div className="remote-message">
+        <p className="eyebrow">ENLACE ENTRANTE / REMITENTE DESCONOCIDO</p>
+        <h2>UNKNOWN</h2><p>«{unknownMessage}»</p>
+      </div>;
+      if (id === 'archivos') return <FileExplorer mounted={p.stage >= 4} archive={Boolean(p.reportRoute)}
+        onRead={read} renderFile={renderFile} />;
+      if (id === 'registros') return <>
+        <p className="eyebrow">NEXUS / CONTROL DE ACCESO</p>
+        <h2>Registro de seguridad</h2>
+        {p.stage < 4 ? <p>Volumen bloqueado. Montá el servidor para leer su contenido.</p> : <>
+          <button disabled={p.log === 'deleted'} onClick={() => read('access')}>{files.access.name}</button>
+          {readingLog && p.log !== 'deleted' && renderFile('access')}
+          {p.log !== 'pending' && <p className="hint">{p.log === 'kept' ? 'Registro protegido contra escritura.' : 'Registro eliminado por orden local.'}</p>}
         </>}
-        {!challenge && tab === 'terminal' && <>
+      </>;
+      if (id === 'diagnóstico') return challenge === 'recovery' ? renderEditor() : <>
+        <p className="eyebrow">NEXUS / SEGURIDAD LOCAL</p>
+        <h2>Diagnóstico del sistema</h2>
+        <p>Intrusión {p.intrusion}/5 · {intrusions[p.intrusion]}.</p>
+        <p>Pruebas leídas: {p.files.length}/3 · Punto seguro: {checkpointNames[checkpoint]}.</p>
+        {p.intrusion === 4 && <button className="primary" onClick={() => openChallenge('recovery')}>Recuperar cerradura</button>}
+        <ul>{p.clues.map(id => <li key={id}>{objects[id].name}</li>)}</ul>
+      </>;
+      if (challenge && challenge !== 'recovery') return renderEditor();
+      return <>
           <p className="eyebrow">CONSOLA / SESIÓN LOCAL</p>
           <h2>{p.stage === 6 ? 'Control local recuperado' : objective}</h2>
           {p.stage >= 2 && p.stage < 6 && <p className="unknown"><strong>UNKNOWN</strong> · {p.stage < 4
@@ -255,73 +381,55 @@ function App() {
               {p.sealed && <button className="primary" onClick={() => finish('THE TRUTH')}>Resguardar las pruebas y salir</button>}
             </div>
           </>}
-        </>}
-        {!challenge && (tab === 'archivos' || tab === 'registros') && <>
-          <p className="eyebrow">VOLUMEN NEXUS / {tab.toUpperCase()}</p>
-          <h2>{tab === 'archivos' ? 'Explorador de archivos' : 'Registro de seguridad'}</h2>
-          {p.stage < 4 ? <p>Volumen bloqueado. Montá el servidor para leer su contenido.</p> : <>
-            <div className="actions">
-              {tab === 'archivos' ? <>
-                <button onClick={() => read('mail')}>{files.mail.name}</button>
-                {p.reportRoute && <button onClick={() => read('report')}>{files.report.name}</button>}
-              </> : <button disabled={p.log === 'deleted'} onClick={() => read('access')}>{files.access.name}</button>}
-            </div>
-            {file && (file !== 'access' || p.log !== 'deleted') && <article className="file">
-              <p className="eyebrow">{files[file].source}</p><p>{files[file].text}</p>
-              {file === 'access' && p.log === 'pending' && <>
-                <p className="unknown"><strong>UNKNOWN</strong> · Borrá ese registro. No tiene nada que ver con el informe.</p>
-                <div className="actions">
-                  <button onClick={() => dispatch({type:'log', keep:true})}>Conservar registro</button>
-                  <button onClick={() => dispatch({type:'log', keep:false})}>Borrar registro</button>
-                </div>
-              </>}
-            </article>}
-            {tab === 'registros' && p.log !== 'pending' && <p className="hint">{p.log === 'kept' ? 'Registro protegido contra escritura.' : 'Registro eliminado por orden local.'}</p>}
-          </>}
-        </>}
-        {!challenge && tab === 'diagnóstico' && <>
-          <h2>Diagnóstico del sistema</h2>
-          <p>Intrusión {p.intrusion}/5 · {intrusions[p.intrusion]}.</p>
-          <p>Pruebas leídas: {p.files.length}/3 · Punto seguro: {checkpointNames[checkpoint]}.</p>
-          {p.intrusion === 4 && <button className="primary" onClick={() => openChallenge('recovery')}>Recuperar cerradura</button>}
-          <ul>{p.clues.map(id => <li key={id}>{objects[id].name}</li>)}</ul>
-        </>}
-      </div>
-    </section>;
+      </>;
+    }
+
+    screen = <Desktop key={desktopSession} state={desktop} leave={() => changeView('room')}
+      renderApp={renderApp} notices={notices} bootTime={bootTime} interrupt={interrupt} />;
   }
 
-  const previousAttack = useRef(false);
+  const previousAttack = useRef<number | null>(null);
   useEffect(() => {
-    if (previousAttack.current && !game.attack && !feedback && !lost) {
+    const wave = previousAttack.current;
+    if (wave !== null && !game.attack && p.wave === wave + 1 && !feedback && !lost) {
       setFeedback('TIEMPO AGOTADO · Intrusión +1. Revisá el diagnóstico antes de seguir.');
     }
-    previousAttack.current = Boolean(game.attack);
-  }, [game.attack, feedback, lost]);
+    previousAttack.current = game.attack ? p.wave : null;
+  }, [game.attack, p.wave, feedback, lost]);
 
-  return <main className={effects && p.intrusion > 0 ? 'effects' : ''}>
-    <header className="top">
-      <div><p className="eyebrow">NEXUS SYSTEMS / INCIDENTE 07</p><strong className="logo">ACCESS DENIED</strong></div>
-      <button onClick={() => setPaused(!paused)}>{paused ? 'Reanudar' : 'Pausa y ajustes'}</button>
+  return <main ref={shell} className={['game-shell', 'view-' + view, effects && 'fx-on', effects && p.intrusion > 0 && 'effects'].filter(Boolean).join(' ')}>
+    <header className="top" inert={paused || confirm !== null}>
+      <span className="logo"><span aria-hidden="true">◇</span> NEXUS SYSTEMS</span>
+      <div className="top-actions">
+        <button onClick={toggleFullscreen}>{fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}</button>
+        {playing && <button onClick={() => setPaused(true)}>Pausa y ajustes</button>}
+      </div>
     </header>
-    <div className="hud">
+    {playing && <div className="hud">
       <span>{act}</span>
       <span className="intrusion" aria-label={'Intrusión ' + p.intrusion + ' de 5'}>INTRUSIÓN
         <span className="meter" aria-hidden="true">{Array.from({length:5}, (_, i) => <i key={i} className={i < p.intrusion ? 'filled' : ''} />)}</span>
         {p.intrusion}/5
       </span>
-    </div>
-    <div inert={paused || confirm !== null}>
+    </div>}
+    <div className="game-screen" inert={paused || confirm !== null}>
       {screen}
-      {feedback && !game.ending && !lost && <p className="feedback" role="status">{feedback}</p>}
+      {displayError && <p className="display-error" role="alert">{displayError}</p>}
+      {playing && feedback && !game.ending && !lost && <p className="feedback" role="status">{feedback}
+        <button aria-label="Cerrar mensaje de estado" onClick={() => setFeedback('')}>×</button>
+      </p>}
     </div>
     {paused && <div className="overlay">
       <section role="dialog" aria-modal="true" aria-label="Pausa y ajustes" className="modal">
-        <p className="eyebrow">SESIÓN EN PAUSA</p><h2>Pausa y ajustes</h2>
+        <p className="eyebrow">PREFERENCIAS LOCALES</p><h2>{playing ? 'Pausa y ajustes' : 'Opciones'}</h2>
         <label className="setting">Volumen <input type="range" min="0" max="100" value={volume} onChange={event => setVolume(Number(event.target.value))}/></label>
         <label className="setting"><input type="checkbox" checked={effects} onChange={event => setEffects(event.target.checked)} /> Efectos visuales de intrusión</label>
         <div className="actions">
-          <button autoFocus className="primary" onClick={() => setPaused(false)}>Reanudar partida</button>
-          <button onClick={() => { setPaused(false); setConfirm('reset'); }}>Nueva partida</button>
+          <button autoFocus className="primary" onClick={() => setPaused(false)}>{playing ? 'Reanudar partida' : 'Volver'}</button>
+          {playing && <>
+            <button onClick={() => { setPaused(false); setView('menu'); }}>Menú principal</button>
+            <button onClick={() => { setPaused(false); setConfirm('reset'); }}>Nueva partida</button>
+          </>}
         </div>
       </section>
     </div>}
@@ -336,16 +444,13 @@ function App() {
           <button autoFocus onClick={() => setConfirm(null)}>Cancelar</button>
           <button className="danger" onClick={() => {
             if (confirm === 'transfer') finish('UNKNOWN WINS');
-            else { retry(0); dispatch({type:'reset'}); }
+            else beginNewSession();
           }}>{confirm === 'transfer' ? 'Transferir control' : 'Reiniciar partida'}</button>
         </div>
       </section>
     </div>}
-    <footer><span>PUNTO SEGURO / {checkpointNames[checkpoint]}</span><span>ESC · PAUSA</span></footer>
+    {playing && <footer><span>PUNTO SEGURO / {checkpointNames[checkpoint]}</span><span>ESC · PAUSA</span></footer>}
   </main>;
 }
 
 createRoot(document.getElementById('root')!).render(<App />);
-
-
-
