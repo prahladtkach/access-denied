@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from 'react';
+import type { Sound } from './audio';
+import { UnknownAvatar } from './UnknownAvatar';
 import './desktop-phase3.css';
 
 export type AppId = 'terminal' | 'archivos' | 'registros' | 'diagnóstico' | 'configuración' | 'unknown';
@@ -63,6 +65,13 @@ export interface Notice {
   remote?: boolean;
 }
 
+function NoticeContents({ notice }: { notice: Notice }) {
+  return <>
+    {notice.remote && <UnknownAvatar />}
+    <span className="os-notice-copy"><strong>{notice.title}</strong><span>{notice.text}</span></span>
+  </>;
+}
+
 interface DesktopProps {
   state: ReturnType<typeof useDesktop>;
   leave: () => void;
@@ -74,9 +83,10 @@ interface DesktopProps {
   muted: boolean;
   toggleMute: () => void;
   security: number;
+  play: (sound: Sound) => void;
 }
 
-export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt, booting, muted, toggleMute, security }: DesktopProps) {
+export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt, booting, muted, toggleMute, security, play }: DesktopProps) {
   const { active, windows, stack, focus, setMode, move } = state;
   const workspace = useRef<HTMLDivElement>(null);
   const controls = useRef<Partial<Record<AppId, HTMLButtonElement | null>>>({});
@@ -84,6 +94,7 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
   const taskButtons = useRef<Partial<Record<AppId, HTMLButtonElement | null>>>({});
   const drag = useRef<{ id: AppId; originX: number; originY: number; left: number; top: number } | null>(null);
   const [dismissed, setDismissed] = useState<string[]>([]);
+  const [expiredToast, setExpiredToast] = useState<string | null>(null);
   const [showNotices, setShowNotices] = useState(false);
   const [popup, setPopup] = useState<'start' | 'context' | null>(null);
   const [context, setContext] = useState({ x: 0, y: 0 });
@@ -102,6 +113,7 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
   }, [popup]);
 
   function open(id: AppId) {
+    play('open');
     const previousFocus = document.activeElement;
     setPopup(null);
     setMode(id, 'open');
@@ -113,6 +125,7 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
   }
 
   function hide(id: AppId, mode: 'minimized' | 'closed') {
+    play('close');
     setMode(id, mode);
     const target = mode === 'minimized' ? taskButtons.current[id] : launchers.current[id];
     const nextWindow = stack.filter(item => item !== id && windows[item].mode === 'open').at(-1);
@@ -157,6 +170,12 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
 
   const unread = notices.filter(notice => !dismissed.includes(notice.id));
   const latest = unread.at(-1);
+  const toastId = latest?.id;
+  useEffect(() => {
+    if (!toastId) return;
+    const timer = window.setTimeout(() => setExpiredToast(toastId), 6500);
+    return () => window.clearTimeout(timer);
+  }, [toastId]);
   const elapsed = Math.max(0, Math.floor((clock - bootTime) / 60_000));
   const total = 23 * 60 + 41 + elapsed;
   const minutes = total % (24 * 60);
@@ -181,7 +200,11 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
     setPopup('context');
   }
 
-  return <section className="nexus-os" aria-label="Escritorio NEXUS OS" onKeyDown={event => {
+  return <section className="nexus-os" aria-label="Escritorio NEXUS OS" onClickCapture={event => {
+    if (event.detail > 0 && (event.target as Element).closest('button')) play('mouse');
+  }} onInputCapture={event => {
+    if ((event.target as Element).matches('input:not([type]), input[type="text"]')) play('key');
+  }} onKeyDown={event => {
     if (event.key === 'Escape' && (popup || showNotices)) {
       event.stopPropagation();
       setPopup(null);
@@ -232,15 +255,15 @@ export function Desktop({ state, leave, renderApp, notices, bootTime, interrupt,
         <button onClick={() => open('configuración')}>Configurar escritorio</button>
         <button onClick={() => { setPopup(null); setShowNotices(true); }}>Ver avisos</button>
       </aside>}
-      {latest && !showNotices && <aside key={latest.id} aria-live="polite" className={'os-toast ' + (latest.remote ? 'os-toast-remote' : '')} aria-label="Notificación reciente">
-        <button className="os-toast-body" onClick={() => readNotice(latest)}><strong>{latest.title}</strong><span>{latest.text}</span></button>
+      {latest && latest.id !== expiredToast && !showNotices && <aside key={latest.id} aria-live="polite" className={'os-toast ' + (latest.remote ? 'os-toast-remote' : '')} aria-label="Notificación reciente">
+        <button className="os-toast-body os-notice-row" onClick={() => readNotice(latest)}><NoticeContents notice={latest} /></button>
         <button aria-label="Descartar notificación" onClick={() => setDismissed(previous => [...previous, latest.id])}>×</button>
       </aside>}
       {showNotices && <aside className="os-notice-center" aria-label="Centro de notificaciones">
         <div className="os-notice-title">CENTRO DE NOTIFICACIONES <button aria-label="Cerrar notificaciones" onClick={() => setShowNotices(false)}>×</button></div>
         {!notices.length && <p>No hay avisos en esta sesión.</p>}
-        {notices.slice().reverse().map(notice => <button key={notice.id} onClick={() => readNotice(notice)}>
-          <strong>{notice.title}</strong><span>{notice.text}</span>
+        {notices.slice().reverse().map(notice => <button className="os-notice-row" key={notice.id} onClick={() => readNotice(notice)}>
+          <NoticeContents notice={notice} />
         </button>)}
       </aside>}
     </div>

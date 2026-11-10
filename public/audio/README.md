@@ -1,5 +1,8 @@
 # Audio de ACCESS DENIED
 
-Los sonidos de cerradura, conexión, arranque y alerta de esta versión se sintetizan en src/audio.ts con Web Audio.
+- `musica/` contiene el tema del menú.
+- `ambiente/` contiene las capas del laboratorio, la computadora y el reloj.
+- `interfaz/` contiene los clics, las ventanas y la cerradura.
+- `terror/` contiene la transmisión de UNKNOWN, la estática y la alarma.
 
-Reservamos ambiente, interfaz y terror para futuros efectos. Al incorporar un archivo, registrá su autor, origen, licencia y atribución en esta carpeta antes de distribuirlo.
+Las fuentes, autorías y licencias están en [CREDITS.md](../../CREDITS.md).

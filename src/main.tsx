@@ -13,6 +13,7 @@ import { Laboratory } from './Laboratory';
 import type { Direction } from './Laboratory';
 import { useAudio } from './audio';
 import { Preferences } from './Preferences';
+import { UnknownAvatar } from './UnknownAvatar';
 import './style.css';
 
 type View = 'menu' | 'intro' | 'room' | 'pc';
@@ -40,7 +41,9 @@ function App() {
   const [paused, setPaused] = useState(false);
   const [confirm, setConfirm] = useState<'transfer' | 'reset' | null>(null);
   const [backupLight, setBackupLight] = useState(false);
-  const { preferences, setPreferences, play } = useAudio();
+  const { preferences, setPreferences, play } = useAudio(
+    view === 'menu' ? 'menu' : game.ending || game.progress.intrusion === 5 || view === 'intro' ? 'silent' : view,
+  );
   const { effects } = preferences;
   const p = game.progress;
   const due = scriptedAttack(p);
@@ -48,11 +51,21 @@ function App() {
   const dark = p.intrusion >= 3 && !backupLight;
   const timing = game.attack?.remaining != null;
   const playing = view === 'pc' || view === 'room';
+  const attackWave = game.attack ? p.wave : null;
+  const lastInterference = useRef<number | null>(null);
   const canContinue = started || p.stage > 0 || p.clues.length > 0 || lost || Boolean(game.ending);
   const canInterrupt = osReady && !paused && !confirm && !challenge && !game.attack &&
     !due && !lost && !game.ending && view === 'pc' && desktop.active === 'terminal' && p.stage >= 2 && p.stage <= 4;
 
   useEffect(() => saveGame(localStorage, game), [game]);
+  useEffect(() => {
+    if (attackWave === null) lastInterference.current = null;
+    else if (playing && lastInterference.current !== attackWave) {
+      lastInterference.current = attackWave;
+      play('crt');
+      play('unknown');
+    }
+  }, [attackWave, playing, play]);
   useEffect(() => {
     if (view !== 'pc' || osReady) return;
     const timer = window.setTimeout(() => setOsReady(true), 560);
@@ -133,7 +146,7 @@ function App() {
     if (!osReady) play('boot');
     if (p.opening === 'contact') {
       desktop.setMode('unknown', 'open');
-      play('link');
+      play('unknown');
     }
     changeView('pc');
   }
@@ -158,6 +171,7 @@ function App() {
 
   function inspect(id: ObjectId) {
     setInspected(id);
+    if (id === 'clock') play('clock');
     if (id !== 'rack' || !dark || p.clues.includes('rack')) dispatch({type:'inspect', id});
   }
 
@@ -196,7 +210,10 @@ function App() {
     dispatch({type:'read', id});
     if (id === 'access') {
       setReadingLog(true);
-      if (p.log === 'pending' && !p.files.includes('access')) desktop.setMode('unknown', 'open');
+      if (p.log === 'pending' && !p.files.includes('access')) {
+        desktop.setMode('unknown', 'open');
+        play('unknown');
+      }
     }
   }
 
@@ -280,7 +297,9 @@ function App() {
     return <article className="file">
       <p className="eyebrow">{files[id].source}</p><p>{files[id].text}</p>
       {id === 'access' && p.log === 'pending' && <>
-        <p className="unknown"><strong>UNKNOWN</strong> · Borrá ese registro. No tiene nada que ver con el informe.</p>
+        <p className="unknown unknown-identity"><UnknownAvatar />
+          <span><strong>UNKNOWN</strong> · Borrá ese registro. No tiene nada que ver con el informe.</span>
+        </p>
         <div className="actions">
           <button onClick={() => dispatch({type:'log', keep:true})}>Conservar registro</button>
           <button onClick={() => dispatch({type:'log', keep:false})}>Borrar registro</button>
@@ -292,7 +311,9 @@ function App() {
   const interrupt = game.attack && attackPuzzle ? <section className="terminal-panel attack">
       <div className="terminal-bar"><span>⚠ INTRUSIÓN EN CURSO</span><span>{timing ? game.attack.remaining + ' s' : 'EN ESPERA'}</span></div>
       {!timing ? <div className="pane">
-        <p className="eyebrow">MENSAJE / UNKNOWN</p><h2>{attackPuzzle.title}</h2>
+        <div className="unknown-identity"><UnknownAvatar /><div>
+          <p className="eyebrow">MENSAJE / UNKNOWN</p><h2>{attackPuzzle.title}</h2>
+        </div></div>
         <p>«Si querés mantener el control, vas a tener que defenderlo.»</p>
         <p>{attackPuzzle.kind === 'debug' ? 'Escribí la condición corregida en C.' :
           attackPuzzle.kind === 'secuencia' ? 'Armá una rutina de C ordenando las líneas.' : 'Interpretá los datos del fragmento de C y escribí la clave.'}
@@ -380,8 +401,10 @@ function App() {
   } else {
     function renderApp(id: AppId) {
       if (id === 'unknown') return <div className="remote-message">
-        <p className="eyebrow">ENLACE ENTRANTE / REMITENTE DESCONOCIDO</p>
-        <h2>UNKNOWN</h2><p>«{unknownMessage}»</p>
+        <div className="unknown-identity"><UnknownAvatar /><div>
+          <p className="eyebrow">ENLACE ENTRANTE / REMITENTE DESCONOCIDO</p><h2>UNKNOWN</h2>
+        </div></div>
+        <p>«{unknownMessage}»</p>
         {p.opening === 'contact' && <button className="primary" onClick={acknowledgeContact}>Silenciar el canal</button>}
       </div>;
       if (id === 'configuración') return <>
@@ -447,7 +470,7 @@ function App() {
 
     screen = <Desktop key={desktopSession} state={desktop} leave={() => { look('puesto'); changeView('room'); }}
       renderApp={renderApp} notices={notices} bootTime={bootTime} interrupt={interrupt}
-      booting={!osReady && !interrupt} muted={preferences.muted} security={p.intrusion}
+      booting={!osReady && !interrupt} muted={preferences.muted} security={p.intrusion} play={play}
       toggleMute={() => setPreferences({ ...preferences, muted: !preferences.muted })} />;
   }
 

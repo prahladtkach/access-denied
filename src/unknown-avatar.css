@@ -1,0 +1,19 @@
+.unknown-avatar {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  flex: none;
+  image-rendering: pixelated;
+  background: #0b1112;
+  border: 1px solid #75514c;
+}
+.unknown-identity {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+}
+.unknown-identity .eyebrow { margin: 0; }
+.unknown-identity h2 { margin: .25em 0; }
+.os-toast .unknown-avatar, .os-notice-center .unknown-avatar, .unknown .unknown-avatar { width: 29px; height: 29px; }
+.os-toast .os-notice-row, .os-notice-center .os-notice-row { display: flex; align-items: flex-start; gap: .55rem; }
+.os-notice-row .os-notice-copy { margin-top: 0; min-width: 0; }
