@@ -9,12 +9,12 @@ const audioFiles = (await readdir(audioRoot, { recursive: true }))
 const click = (page, name) => page.getByRole('button', { name, exact: true }).click();
 
 test('producción sirve y decodifica todas las pistas de audio', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('./');
   expect(audioFiles).toHaveLength(13);
   const decoded = await page.evaluate(async files => {
     const context = new OfflineAudioContext(1, 44100, 44100);
     return await Promise.all(files.map(async file => {
-      const response = await fetch('/audio/' + file);
+      const response = await fetch(new URL('audio/' + file, document.baseURI));
       if (!response.ok) throw new Error(file + ': HTTP ' + response.status);
       const audio = await context.decodeAudioData(await response.arrayBuffer());
       return { file, seconds: audio.duration };
@@ -48,7 +48,7 @@ test('intento de reproducción inicial, fundido al salir, avatar y transmisión 
       return stop.apply(this, args);
     };
   });
-  await page.goto('/');
+  await page.goto('./');
   await expect(page.getByRole('button', { name: 'Acercarse al monitor' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.createdBeforeGesture)).toBe(true);
   await page.locator('.menu-scene').click({ position: { x: 10, y: 10 } });
@@ -91,7 +91,7 @@ test('los tres niveles y el silencio se guardan de forma independiente', async (
     const key = 'access-denied:preferences:v1';
     if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({ volume: 41, muted: false }));
   });
-  await page.goto('/');
+  await page.goto('./');
   await click(page, 'Acercarse al monitor');
   await click(page, 'Opciones');
   const music = page.getByRole('slider', { name: /^Música/ });

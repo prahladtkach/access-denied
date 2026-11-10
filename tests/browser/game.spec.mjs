@@ -36,7 +36,7 @@ async function warn(page) {
 }
 
 async function terminalRecovered(page) {
-  await page.goto('/');
+  await page.goto('./');
   await click(page, 'Acercarse al monitor');
   await click(page, 'Nueva partida');
   await click(page, 'Entrar al laboratorio');
@@ -194,7 +194,7 @@ test('el temporizador respeta la pausa y una intrusión 5/5 permite restaurar', 
 
 test('NEXUS OS: ventanas simultáneas, movimiento, cierre y borrador con mouse y teclado', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 640 });
-  await page.goto('/');
+  await page.goto('./');
   await button(page, 'Acercarse al monitor').press('Enter');
   await expect(button(page, 'Continuar partida')).toBeDisabled();
   await button(page, 'Opciones').press('Enter');
@@ -249,7 +249,7 @@ test('NEXUS OS: ventanas simultáneas, movimiento, cierre y borrador con mouse y
 });
 
 test('pantalla completa desde el menú y regreso a la ventana', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('./');
   await click(page, 'Pantalla completa');
   await expect(button(page, 'Salir de pantalla completa')).toBeVisible();
   await click(page, 'Salir de pantalla completa');
@@ -259,7 +259,7 @@ test('pantalla completa desde el menú y regreso a la ventana', async ({ page })
 test('el CRT abre el menú con teclado y permite regresar a la vista general', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+  await page.goto('./');
   const monitor = button(page, 'Acercarse al monitor');
   await expect(monitor).toBeVisible();
   await expect(button(page, 'Nueva partida')).toHaveCount(0);
@@ -274,7 +274,7 @@ test('el CRT abre el menú con teclado y permite regresar a la vista general', a
 });
 
 test('exploración, reloj, arranque, inicio de NEXUS y sonido persistente', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('./');
   await click(page, 'Acercarse al monitor');
   await click(page, 'Nueva partida');
   await click(page, 'Entrar al laboratorio');
@@ -313,7 +313,7 @@ test('exploración, reloj, arranque, inicio de NEXUS y sonido persistente', asyn
 
 test('el CRT muestra un salvapantallas y vuelve al encuadre anterior', async ({ page }) => {
   await page.clock.install();
-  await page.goto('/');
+  await page.goto('./');
   await click(page, 'Acercarse al monitor');
   await page.clock.fastForward(46_000);
   await expect(button(page, 'Reactivar monitor')).toBeVisible();
@@ -344,7 +344,7 @@ test('el CRT muestra un salvapantallas y vuelve al encuadre anterior', async ({ 
 
 test('el póster original carga y el reloj de sesión avanza mientras el de pared sigue detenido', async ({ page }) => {
   await page.clock.install();
-  await page.goto('/');
+  await page.goto('./');
   await click(page, 'Acercarse al monitor');
   await click(page, 'Nueva partida');
   await click(page, 'Entrar al laboratorio');
@@ -383,7 +383,7 @@ test('las otras seis variantes de ataque aceptan soluciones de C básico', async
     ['S3', ['int intentos = 2;', 'while (intentos > 0)', 'printf("%d", intentos);']],
     ['C3', 'NEXUS'],
   ];
-  await page.goto('/');
+  await page.goto('./');
   for (const [offset, [id, solution]] of answers.entries()) {
     await page.evaluate(index => {
       const initial = { stage: 0, clues: [], files: [], log: 'pending', intrusion: 0, wave: 0, sealed: false };
@@ -440,7 +440,7 @@ test('redimensionar por borde y esquina conserva el borrador y respeta el escrit
 for (const [width, height] of [[1920, 1080], [1366, 768], [1280, 720]]) {
   test('las vistas conservan geometría y el panel no cambia su escala a ' + width + '×' + height, async ({ page }) => {
     await page.setViewportSize({ width, height });
-    await page.goto('/');
+    await page.goto('./');
     await click(page, 'Acercarse al monitor');
     await click(page, 'Nueva partida');
     await click(page, 'Entrar al laboratorio');

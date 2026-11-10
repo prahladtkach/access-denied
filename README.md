@@ -2,6 +2,8 @@
 
 Escape room en español para navegador de escritorio. Estás atrapado de noche en el laboratorio de NEXUS SYSTEMS. Explorá la habitación, repará los sistemas y decidí qué hacer con las pruebas.
 
+[Jugar en GitHub Pages](https://prahladtkach.github.io/access-denied/) · [Código fuente](https://github.com/prahladtkach/access-denied) · [Créditos y licencias](CREDITS.md)
+
 ## Jugar
 
 Con Node.js 22.18+ o 24, abrí PowerShell en esta carpeta:
@@ -32,7 +34,11 @@ npm.cmd run test:e2e
 
 El segundo comando comprueba TypeScript, genera la compilación de producción y ejecuta las pruebas de navegador con Microsoft Edge. Si tenés Chrome, podés seleccionar ese navegador con `$env:ACCESS_DENIED_BROWSER = 'chrome'`. También podés compilar por separado con `npm.cmd run build`.
 
-Para probar la entrega de producción, ejecutá `npm.cmd run build` y después `npm.cmd run preview`. Abrí la dirección que indique Vite. La carpeta `dist` contiene el juego listo para servirse por HTTP.
+Para probar la entrega de producción, ejecutá `npm.cmd run build` y después `npm.cmd run preview`. Abrí la dirección que indique Vite, con la ruta `/access-denied/`. La carpeta `dist` contiene la compilación estática para esa ruta.
+
+## Publicar en GitHub Pages
+
+En el repositorio, seleccioná **Settings → Pages → Source → GitHub Actions**. El workflow **Publicar ACCESS DENIED** compila y publica cada cambio de `main`. También podés iniciarlo desde **Actions → Publicar ACCESS DENIED → Run workflow**.
 
 ## Alcance
 
